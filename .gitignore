@@ -1,0 +1,5 @@
+# Local, private source excerpts and previews. Never publish by default.
+private-data/
+preview*.jpg
+preview*.png
+exports/
