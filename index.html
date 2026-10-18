@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Cyber 第二大脑</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./src/styles.css" />
+</head>
+<body>
+  <div id="app" class="app" data-motion="on">
+    <canvas id="bg-canvas" class="bg-canvas" aria-hidden="true"></canvas>
+
+    <div id="intro-overlay" class="intro-overlay" hidden>
+      <div class="intro-brain" id="intro-brain" aria-hidden="true"></div>
+      <div class="intro-identity" aria-hidden="true"><span class="intro-sequence">SYSTEM / PERSONAL NEURAL SPACE</span><strong>CYBER<br><em>BRAIN</em></strong><span class="intro-subline">YOUR THOUGHTS ARE TAKING SHAPE</span></div>
+      <div class="intro-track" aria-hidden="true"><span></span></div>
+      <button type="button" class="intro-skip" id="intro-skip">跳过</button>
+    </div>
+
+    <header class="top-bar">
+      <div class="brand" aria-label="Cyber Brain"><span class="brand-symbol" aria-hidden="true">⌁</span><span>CYBER <b>BRAIN</b><small> / 01</small></span></div>
+      <nav class="breadcrumb" id="breadcrumb" aria-label="层级"></nav>
+      <div class="top-actions">
+        <span class="live-indicator" aria-hidden="true"><i></i> NEURAL SPACE</span>
+        <span class="sample-hint" id="sample-hint" hidden>正在显示示例数据</span>
+        <button type="button" class="icon-btn" id="motion-toggle" aria-pressed="false" title="关闭动态效果">动效</button>
+        <button type="button" class="icon-btn back-btn" id="back-btn" hidden>返回</button>
+      </div>
+    </header>
+
+    <div class="viewport" id="viewport">
+      <div class="scene" id="scene">
+        <svg class="edges" id="edges" aria-hidden="true">
+          <defs>
+            <marker id="arrow-recorded" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="#b6ecd0" />
+            </marker>
+            <marker id="arrow-inferred" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="#7ec4ce" />
+            </marker>
+          </defs>
+          <g id="edge-group"></g>
+        </svg>
+        <div class="nodes" id="nodes" role="group" aria-label="思考图谱"></div>
+      </div>
+    </div>
+
+    <aside class="popover" id="popover" hidden role="dialog" aria-modal="false" aria-labelledby="popover-title">
+      <div class="popover-connector" id="popover-connector" aria-hidden="true"></div>
+      <header class="popover-header" id="popover-drag-handle">
+        <h2 class="popover-title" id="popover-title"></h2>
+        <button type="button" class="popover-close" id="popover-close" aria-label="关闭">×</button>
+      </header>
+      <div class="popover-body" id="popover-body"></div>
+    </aside>
+
+    <footer class="bottom-bar">
+      <div class="footer-index" aria-hidden="true">CB / 005 <span>PERSONAL ATLAS</span></div>
+      <div class="legend" aria-label="连线图例">
+        <span class="legend-item"><i class="legend-line solid"></i>记录中的先后</span>
+        <span class="legend-item"><i class="legend-line dashed"></i>关联待确认</span>
+        <span class="legend-item"><i class="legend-line dotted"></i>来源</span>
+      </div>
+      <div class="zoom-controls">
+        <button type="button" class="icon-btn" id="zoom-out" aria-label="缩小">−</button>
+        <button type="button" class="icon-btn" id="zoom-reset" aria-label="复位视图">◎</button>
+        <button type="button" class="icon-btn" id="zoom-in" aria-label="放大">+</button>
+      </div>
+    </footer>
+  </div>
+
+  <script src="./private-data/flomo.js"></script>
+  <script src="./private-data/thoughts.js"></script>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

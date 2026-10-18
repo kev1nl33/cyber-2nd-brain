@@ -1,0 +1,157 @@
+/** Non-private sample when private-data scripts are missing. */
+export const SAMPLE_CYBER_THOUGHTS = {
+  themes: [
+    {
+      id: "invest",
+      label: "投资",
+      en: "INVEST",
+      code: "01",
+      description: "示例主题",
+      recordIds: [],
+      latest: "2025-11-01",
+      ideas: [
+        {
+          id: "invest-demo",
+          title: "示例：如何留下判断依据？",
+          summary: "这是演示数据，不含私人原文。",
+          status: "示例",
+          updated: "2025-11-01",
+          nodes: [
+            {
+              id: "s1",
+              date: "2025-11-01",
+              kind: "起点",
+              title: "先写下当时为什么买",
+              body: "演示步骤说明。",
+              refs: [{ id: "sample-1", quote: "示例引用" }],
+              connection: "recorded",
+              link: "然后",
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: "create",
+      label: "创作",
+      en: "CREATE",
+      code: "02",
+      description: "示例主题",
+      recordIds: [],
+      latest: "2025-11-02",
+      ideas: [
+        {
+          id: "create-demo",
+          title: "示例：一段文字如何变成作品？",
+          summary: "演示数据。",
+          status: "示例",
+          updated: "2025-11-02",
+          nodes: [],
+        },
+      ],
+    },
+    {
+      id: "develop",
+      label: "开发",
+      en: "DEV",
+      code: "03",
+      description: "示例主题",
+      recordIds: [],
+      latest: "2026-10-17",
+      ideas: [
+        {
+          id: "develop-brain",
+          title: "第二大脑，怎样才能让我更清楚？",
+          summary: "演示版思考路径。",
+          status: "示例",
+          updated: "2026-10-17",
+          nodes: [
+            {
+              id: "wish",
+              date: "2026-10-15",
+              kind: "起点",
+              title: "让自己的记录带来理解",
+              body: "示例：希望个人记录能形成更贴近生活的理解。",
+              refs: [{ id: "sample-chat-1", quote: "更贴近生活" }],
+              connection: "recorded",
+              link: "然后",
+            },
+            {
+              id: "prototype",
+              date: "2026-10-15",
+              kind: "行动",
+              title: "先做出地图和候选卡片",
+              body: "示例：第一版连接领域与卡片。",
+              refs: [{ id: "sample-chat-2", quote: "地图与卡片" }],
+              connection: "recorded",
+              link: "做成原型",
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: "read",
+      label: "阅读",
+      en: "READ",
+      code: "04",
+      description: "示例主题",
+      recordIds: [],
+      latest: "2025-11-03",
+      ideas: [
+        {
+          id: "read-demo",
+          title: "示例：读完后怎样变成自己的话？",
+          summary: "演示数据。",
+          status: "示例",
+          updated: "2025-11-03",
+          nodes: [],
+        },
+      ],
+    },
+    {
+      id: "growth",
+      label: "个人成长",
+      en: "GROWTH",
+      code: "05",
+      description: "示例主题",
+      recordIds: [],
+      latest: "2025-11-04",
+      ideas: [
+        {
+          id: "growth-demo",
+          title: "示例：注意力留给什么？",
+          summary: "演示数据。",
+          status: "示例",
+          updated: "2025-11-04",
+          nodes: [],
+        },
+      ],
+    },
+  ],
+  sources: [
+    {
+      id: "sample-chat-1",
+      title: "示例对话",
+      date: "2026-10-15",
+      kind: "示例 · 非真实原文",
+      origin: "sample",
+      text: "这是示例来源文本，用于在无 private-data 时演示浮框与来源查看。",
+    },
+    {
+      id: "sample-chat-2",
+      title: "示例整理",
+      date: "2026-10-15",
+      kind: "示例",
+      origin: "sample",
+      text: "示例第二段来源。",
+    },
+    { id: "sample-1", title: "示例 flomo", date: "2025-11-01", kind: "示例", origin: "sample", text: "示例 flomo 原文。" },
+  ],
+  meta: { note: "示例数据" },
+};
+
+export const SAMPLE_BRAIN_DATA = {
+  meta: { selected: 0 },
+  records: [],
+};
