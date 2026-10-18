@@ -1,897 +1,706 @@
-import { loadGraph, getIdea } from "./model.js";
-import { computeLayout, kindShape } from "./layout.js";
-import { parseHash, buildHash, backOneLevel } from "./route.js";
-import { createBrainBackground, brainMarkup } from "./brain.js";
+/**
+ * Application shell: owns the explicit state (route level, selected node,
+ * expanded source branches, camera, popover) and keeps the canvas as the only
+ * surface. Nothing here ever scrolls the page.
+ */
+import { createBackground } from "./background.js";
+import { createCamera } from "./camera.js";
+import { loadGraph } from "./graph.js";
+import { runIntro } from "./intro.js";
+import { boundsOf, computeLayout } from "./layout.js";
+import { createPopover } from "./popover.js";
+import { backOneLevel, buildHash, parseHash } from "./route.js";
+import { createScene } from "./scene.js";
 
-/** @typedef {import('./route.js').RouteState} RouteState */
+export function startApp() {
+  const el = {
+    app: document.getElementById("app"),
+    stage: document.getElementById("stage"),
+    nodes: document.getElementById("nodes"),
+    edges: document.getElementById("edges"),
+    tags: document.getElementById("edge-tags"),
+    bg: document.getElementById("bg-canvas"),
+    topBar: document.querySelector(".top-bar"),
+    bottomBar: document.querySelector(".bottom-bar"),
+    breadcrumb: document.getElementById("breadcrumb"),
+    back: document.getElementById("back-btn"),
+    motion: document.getElementById("motion-toggle"),
+    sampleHint: document.getElementById("sample-hint"),
+    status: document.getElementById("status-line"),
+    popover: document.getElementById("popover"),
+    intro: document.getElementById("intro-overlay"),
+    introSvg: document.getElementById("intro-brain"),
+    introSkip: document.getElementById("intro-skip"),
+    zoomIn: document.getElementById("zoom-in"),
+    zoomOut: document.getElementById("zoom-out"),
+    zoomReset: document.getElementById("zoom-reset"),
+  };
 
-export function createApp(root) {
-  const viewport = root.querySelector("#viewport");
-  const scene = root.querySelector("#scene");
-  const nodesEl = root.querySelector("#nodes");
-  const edgeGroup = root.querySelector("#edge-group");
-  const popover = root.querySelector("#popover");
-  const popoverTitle = root.querySelector("#popover-title");
-  const popoverBody = root.querySelector("#popover-body");
-  const popoverClose = root.querySelector("#popover-close");
-  const popoverHandle = root.querySelector("#popover-drag-handle");
-  const popoverConnector = root.querySelector("#popover-connector");
-  const breadcrumb = root.querySelector("#breadcrumb");
-  const backBtn = root.querySelector("#back-btn");
-  const sampleHint = root.querySelector("#sample-hint");
-  const motionToggle = root.querySelector("#motion-toggle");
-  const introOverlay = root.querySelector("#intro-overlay");
-  const introSkip = root.querySelector("#intro-skip");
-  const introBrain = root.querySelector("#intro-brain");
-  const bgCanvas = root.querySelector("#bg-canvas");
-  const zoomIn = root.querySelector("#zoom-in");
-  const zoomOut = root.querySelector("#zoom-out");
-  const zoomReset = root.querySelector("#zoom-reset");
+  const graph = loadGraph();
+  if (graph.usingSample) el.sampleHint.hidden = false;
 
-  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  let motionOn = !reducedMotion;
-  let introDone = reducedMotion;
+  const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const state = {
+    route: normalizeRoute(parseHash(location.hash), graph),
+    selectedId: null,
+    expanded: new Set(),
+    popover: null,
+    motion: !prefersReduced,
+  };
 
-  const { graph, usingSample } = loadGraph();
-  if (usingSample) sampleHint.hidden = false;
-  introBrain.innerHTML = brainMarkup("full", "intro");
-
-  /** @type {RouteState} */
-  let route = parseHash(location.hash);
-  let sourcesExpanded = !!route.sourcesExpanded;
-
-  const camera = { x: 0, y: 0, zoom: 1 };
-  let cameraManual = false;
-  let layoutTargets = {};
-  let visibleIds = new Set();
-  let visibleEdges = [];
-  let focusNodeId = "core";
-
-  /** @type {Map<string, HTMLElement>} */
-  const nodeEls = new Map();
-  /** @type {Map<string, {x:number,y:number}>} */
-  const displayPos = new Map();
-
-  let popoverDragOffset = null;
-  let popoverManualPos = null;
-  let lastAnchorNodeId = null;
-
-  let panning = false;
-  let panStart = { x: 0, y: 0, camX: 0, camY: 0 };
-  let pinch = null;
-
-  const bg = createBrainBackground(bgCanvas, {
-    motion: motionOn,
-    reducedMotion,
-    onIntroDone() {
-      introDone = true;
-      introOverlay.hidden = true;
-      root.dataset.intro = "done";
+  const camera = createCamera();
+  const background = createBackground({ canvas: el.bg });
+  const scene = createScene({
+    nodesLayer: el.nodes,
+    edgesSvg: el.edges,
+    tagsLayer: el.tags,
+    camera,
+    onActivate: activateNode,
+    onHoverChange: () => {},
+  });
+  const popover = createPopover({
+    el: el.popover,
+    onClose: () => {
+      state.popover = null;
+      scene.setConnector(null);
     },
+    onAction: handlePopoverAction,
   });
 
-  const deepLink = parseHash(location.hash).level !== "overview";
-  if (!reducedMotion && !deepLink) introOverlay.hidden = false;
-  else {
-    introOverlay.hidden = true;
-    if (deepLink) {
-      introDone = true;
-      bg.skipIntro();
+  let layout = null;
+
+  applyMotion(state.motion, { silent: true });
+  measureInsets();
+  render({ refit: true, instantCamera: true });
+
+  const deepLinked = state.route.level !== "overview";
+  runIntro({
+    overlay: el.intro,
+    svg: el.introSvg,
+    skipBtn: el.introSkip,
+    background,
+    motion: state.motion && !deepLinked,
+  });
+
+  // ---------------------------------------------------------------- rendering
+
+  function render({ refit = false, instantCamera = false } = {}) {
+    const rect = el.stage.getBoundingClientRect();
+    camera.setArea({
+      width: rect.width,
+      height: rect.height,
+      insets: {
+        top: el.topBar.offsetHeight + 14,
+        bottom: el.bottomBar.offsetHeight + 14,
+        left: 18,
+        right: 18,
+      },
+    });
+
+    layout = computeLayout(
+      graph,
+      {
+        level: state.route.level === "step" ? "idea" : state.route.level,
+        themeId: state.route.themeId,
+        ideaId: state.route.ideaId,
+        expanded: state.expanded,
+      },
+      { width: rect.width, height: rect.height }
+    );
+
+    scene.setLayout(layout, graph.edges);
+    // Only level changes, reset and resize refit: selecting a node or
+    // expanding a source branch must leave the camera exactly where it is.
+    if (refit) {
+      fitCamera();
+      if (instantCamera) camera.snap();
     }
-  }
-
-  root.dataset.motion = motionOn ? "on" : "off";
-  root.dataset.intro = introDone ? "done" : "play";
-  if (reducedMotion) root.dataset.reducedMotion = "true";
-  if (!motionOn) {
-    motionToggle.textContent = "静态";
-    motionToggle.setAttribute("aria-pressed", "true");
-  }
-
-  function applyRouteFromHash() {
-    const next = parseHash(location.hash);
-    const st = history.state;
-    sourcesExpanded = !!(next.sourcesExpanded || st?.sourcesExpanded);
-    route = { ...next };
-    if (next.level !== "step" || !next.stepId) {
-      popoverManualPos = null;
-    }
-    if (!cameraManual) scheduleFit();
-    rebuild();
-  }
-
-  function navigateTo(next, { fromHistory = false, replace = false } = {}) {
-    if (!fromHistory) {
-      const full = buildHash(next);
-      const state = { sourcesExpanded: !!next.sourcesExpanded || sourcesExpanded };
-      if (replace) history.replaceState(state, "", full);
-      else history.pushState(state, "", full);
-    }
-    const prev = route;
-    route = { ...next };
-    if (next.level !== "step" || next.stepId !== prev.stepId) {
-      popoverManualPos = null;
-      lastAnchorNodeId = null;
-    }
-    if (!cameraManual) scheduleFit();
-    rebuild();
-  }
-
-  function scheduleFit() {
-    requestAnimationFrame(() => fitCamera());
-  }
-
-  function isTightViewport() {
-    const rect = viewport.getBoundingClientRect();
-    return rect.width < 720 || rect.height < 640;
+    applySelection();
+    renderChrome();
   }
 
   function fitCamera() {
-    const rect = viewport.getBoundingClientRect();
-    camera.x = 0;
-    camera.y = 0;
-    // Measure the rendered artwork and captions. Labels grow as the map shrinks,
-    // so a second pass accounts for that boost before settling on the zoom.
-    let zoom = 1;
-    for (let pass = 0; pass < 3; pass++) {
-      camera.zoom = zoom;
-      applyCamera();
-      let extentX = 110;
-      let extentY = 100;
-      for (const id of visibleIds) {
-        const t = layoutTargets[id];
-        const el = nodeEls.get(id);
-        if (!t || t.fit === false || !el) continue;
-        const p = displayPos.get(id) || t;
-        const cx = rect.left + rect.width / 2 + p.x * zoom;
-        const cy = rect.top + rect.height / 2 + p.y * zoom;
-        for (const part of [el, el.querySelector('.node-caption')]) {
-          if (!part) continue;
-          const box = part.getBoundingClientRect();
-          const left = t.x + (box.left - cx) / zoom;
-          const right = t.x + (box.right - cx) / zoom;
-          const top = t.y + (box.top - cy) / zoom;
-          const bottom = t.y + (box.bottom - cy) / zoom;
-          extentX = Math.max(extentX, Math.abs(left), Math.abs(right));
-          extentY = Math.max(extentY, Math.abs(top), Math.abs(bottom));
-        }
-      }
-      const fit = Math.min((rect.width - 32) / (2 * extentX), (rect.height - 30) / (2 * extentY));
-      zoom = clamp(fit, 0.25, 1.08);
-    }
-    camera.zoom = zoom;
-    applyCamera();
+    camera.fit(boundsOf(layout.focus), boundsOf(layout.placements.values()), layout.fit);
   }
 
-  function rebuild() {
-    const layout = computeLayout(graph, route, { sourcesExpanded, compact: isTightViewport() });
-    layoutTargets = layout.targets;
-    visibleIds = layout.visibleIds;
-    visibleEdges = layout.edges;
-    focusNodeId = layout.focusId;
-    reconcileNodes();
-    drawEdges();
-    updateChrome();
-    updatePopover();
-    updateTabOrder();
-  }
-
-  function reconcileNodes() {
-    const seen = new Set();
-    for (const id of visibleIds) {
-      seen.add(id);
-      let el = nodeEls.get(id);
-      if (!el) {
-        el = createNodeElement(id);
-        nodesEl.appendChild(el);
-        nodeEls.set(id, el);
-        const t = layoutTargets[id] || { x: 0, y: 0 };
-        displayPos.set(id, { x: t.x, y: t.y });
-      }
-      updateNodeElement(el, id);
-      const p = displayPos.get(id);
-      el.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -50%) scale(var(--node-scale, 1))`;
-    }
-    for (const [id, el] of nodeEls) {
-      if (!seen.has(id)) {
-        el.remove();
-        nodeEls.delete(id);
-        displayPos.delete(id);
-      }
-    }
-  }
-
-  function createNodeElement(id) {
-    const node = graph.nodes.get(id);
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "node";
-    btn.dataset.id = id;
-    btn.dataset.type = node?.type || "unknown";
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      onNodeClick(id);
-    });
-    return btn;
-  }
-
-  function updateNodeElement(el, id) {
-    const node = graph.nodes.get(id);
-    if (!node) return;
-    const t = layoutTargets[id] || { x: 0, y: 0, scale: 1, dim: false };
-    el.dataset.dim = t.dim ? "1" : "0";
-    el.classList.toggle("is-selected", isSelected(id));
-    el.classList.toggle("is-path", isOnPath(id));
-    el.classList.toggle("is-pulse", shouldPulse(id));
-    el.style.setProperty("--node-scale", String(t.scale ?? 1));
-
-    const angle = t.angle ?? Math.PI / 2;
-    const compact = isTightViewport();
-    const cap = node.type === "core" ? 124 : node.type === "theme" ? (compact && route.level === "overview" ? 64 : 96) : node.type === "idea" ? (compact ? 52 : 64) : (compact ? 46 : 52);
-    const direction = compact && (node.type === "idea" || node.type === "conclusion") ? -1 : 1;
-    const themeIdea = compact && route.level === "theme" && node.type === "idea";
-    const compactChain = compact && (route.level === "idea" || route.level === "step");
-    const chainNode = compactChain && (node.type === "step" || node.type === "conclusion");
-    const chainIdea = compactChain && node.type === "idea" && node.ideaId === route.ideaId;
-    el.style.setProperty("--cap-x", `${themeIdea || chainNode || chainIdea ? 0 : Math.cos(angle) * cap * direction}px`);
-    el.style.setProperty("--cap-y", `${themeIdea ? -66 : chainNode ? -51 : chainIdea ? 69 : Math.sin(angle) * cap * direction}px`);
-
-    const shape = node.type === "step" ? kindShape(node.kind) : node.type;
-    el.dataset.shape = shape;
-
-    let html = "";
-    if (node.type === "core") {
-      html = `<div class="brain-glyph" aria-hidden="true">${brainMarkup("full", id)}</div><span class="node-caption"><span class="node-core-label">我的大脑</span><span class="node-meta">PERSONAL NEURAL SPACE</span></span>`;
-    } else if (node.type === "theme") {
-      html = `<div class="brain-glyph" aria-hidden="true">${brainMarkup("sparse", id)}</div><span class="node-caption"><span class="node-theme-name">${escapeHtml(node.label)}</span>
-        <span class="node-meta">${node.ideaCount} 条 · ${escapeHtml(node.latest || "")}</span></span>`;
-    } else if (node.type === "idea") {
-      html = `<span class="node-idea-orb" aria-hidden="true"></span><span class="node-caption"><span class="node-idea-title">${escapeHtml(compactChain ? shortText(node.label, 7) : node.label)}</span></span>`;
-    } else if (node.type === "step") {
-      html = `<span class="node-step-num">${node.index}</span>
-        <span class="node-caption"><span class="node-step-title">${escapeHtml(compactChain ? shortText(node.label, 4) : node.label)}</span></span>`;
-    } else if (node.type === "source") {
-      html = `<span class="node-source-icon" aria-hidden="true">⎘</span>
-        <span class="node-caption"><span class="node-source-title">${escapeHtml(shortText(node.label, 12))}</span></span>`;
-    } else if (node.type === "conclusion") {
-      const pending = node.pendingTitles?.length
-        ? `<span class="node-conclusion-pending">有待确认</span>`
-        : node.status
-          ? `<span class="node-conclusion-pending">${escapeHtml(node.status)}</span>`
-          : "";
-      html = `<span class="node-conclusion-mark" aria-hidden="true"><span>结</span></span>
-        <span class="node-caption"><span class="node-conclusion-tag">阶段理解</span>
-        <span class="node-conclusion-text">${escapeHtml(compactChain ? shortText(node.summary || "", 4) : (node.summary || ""))}</span>${pending}</span>`;
-    }
-    if (el.innerHTML !== html) el.innerHTML = html;
-    el.setAttribute("aria-label", nodeLabel(node));
-  }
-
-  function nodeLabel(node) {
-    if (node.type === "theme") return `${node.label}，${node.ideaCount} 个问题`;
-    return node.label;
-  }
-
-  function isSelected(id) {
-    if (route.level !== "step") return false;
-    if (route.stepId === "conclusion") return id === `conclusion:${route.themeId}/${route.ideaId}`;
-    if (id.startsWith("source:")) return route.sourceId && id.endsWith(`/${route.sourceId}`);
-    return id === `step:${route.themeId}/${route.ideaId}/${route.stepId}`;
-  }
-
-  function anchorId() {
-    if (route.level !== "step" || !route.stepId) return null;
-    if (route.stepId === "conclusion") return `conclusion:${route.themeId}/${route.ideaId}`;
-    if (route.sourceId) {
-      const src = `source:${route.themeId}/${route.ideaId}/${route.stepId}/${route.sourceId}`;
-      if (graph.nodes.has(src)) return src;
-    }
-    return `step:${route.themeId}/${route.ideaId}/${route.stepId}`;
-  }
-
-  function isOnPath(id) {
-    if (route.level !== "step" && route.level !== "idea") return false;
-    if (!route.ideaId || !route.themeId) return false;
-    if (id.startsWith(`step:${route.themeId}/${route.ideaId}/`)) return true;
-    if (id === `conclusion:${route.themeId}/${route.ideaId}`) return true;
-    if (id === `idea:${route.themeId}/${route.ideaId}`) return true;
-    if (id === `theme:${route.themeId}`) return true;
-    return false;
-  }
-
-  function shouldPulse(id) {
-    if (!motionOn || reducedMotion) return false;
-    if (route.level !== "step" && route.level !== "idea") return false;
-    const node = graph.nodes.get(id);
-    return node?.type === "step" && node.isNewestInIdea && isOnPath(id);
-  }
-
-  function onNodeClick(id) {
-    const node = graph.nodes.get(id);
-    if (!node) return;
-    if (node.type === "core") {
-      navigateTo({ level: "overview" });
+  function applySelection() {
+    const selected = state.selectedId ? graph.nodes.get(state.selectedId) : null;
+    if (!selected) {
+      scene.setSelection({ selectedId: null });
       return;
+    }
+    const nodeIds = new Set([selected.id]);
+    const edgeIds = new Set();
+
+    if (selected.type === "step" || selected.type === "source" || selected.type === "conclusion") {
+      const themeId = selected.themeId;
+      const ideaId = selected.ideaId;
+      const idea = graph.idea(themeId, ideaId);
+      const steps = graph.steps(themeId, ideaId);
+      const stepNode =
+        selected.type === "step"
+          ? selected
+          : selected.type === "source"
+          ? graph.step(themeId, ideaId, selected.stepId)
+          : steps[steps.length - 1];
+      const limit = stepNode ? stepNode.index : steps.length;
+
+      if (idea) nodeIds.add(idea.id);
+      for (const step of steps) {
+        if (step.index > limit) continue;
+        nodeIds.add(step.id);
+      }
+      for (const edge of graph.edges) {
+        if (nodeIds.has(edge.from) && nodeIds.has(edge.to)) edgeIds.add(edge.id);
+      }
+      if (selected.type === "source") {
+        edgeIds.add(`e:${stepNode?.id}>${selected.refId}`);
+      }
+      if (selected.type === "conclusion") {
+        const conclusionEdge = graph.edgesInto(selected.id)[0];
+        if (conclusionEdge) edgeIds.add(conclusionEdge.id);
+      }
+    } else {
+      for (const edge of graph.edgesFrom(selected.id)) edgeIds.add(edge.id);
+      for (const edge of graph.edgesInto(selected.id)) edgeIds.add(edge.id);
+    }
+
+    scene.setSelection({
+      selectedId: selected.id,
+      nodeIds,
+      edgeIds,
+      focusChain: selected.type === "step" || selected.type === "source" || selected.type === "conclusion",
+    });
+  }
+
+  function renderChrome() {
+    const { level, themeId, ideaId, stepId } = state.route;
+    const theme = themeId ? graph.theme(themeId) : null;
+    const idea = ideaId ? graph.idea(themeId, ideaId) : null;
+    const step = stepId ? graph.step(themeId, ideaId, stepId) : null;
+
+    const crumbs = [{ label: "总览", route: { level: "overview" } }];
+    if (theme) crumbs.push({ label: theme.label, route: { level: "theme", themeId } });
+    if (idea) crumbs.push({ label: shorten(idea.label, 14), route: { level: "idea", themeId, ideaId } });
+    if (step) crumbs.push({ label: `步骤 ${String(step.index).padStart(2, "0")}`, route: state.route });
+
+    el.breadcrumb.innerHTML = crumbs
+      .map((crumb, i) => {
+        const last = i === crumbs.length - 1;
+        return `<button type="button" class="crumb${last ? " is-current" : ""}" data-hash="${buildHash(
+          crumb.route
+        )}"${last ? ' aria-current="true"' : ""}>${escapeHtml(crumb.label)}</button>`;
+      })
+      .join('<span class="crumb-sep" aria-hidden="true">/</span>');
+
+    el.back.hidden = level === "overview";
+    el.status.textContent = statusLine(level, theme, idea, step);
+  }
+
+  function statusLine(level, theme, idea, step) {
+    if (level === "overview") return `${graph.themes().length} 个主题 · 最近更新 ${graph.latest || "—"}`;
+    if (level === "theme") return `${theme?.label || ""} · ${theme?.ideaCount || 0} 个问题`;
+    if (!step) return `${idea?.label || ""} · ${idea?.stepCount || 0} 步`;
+    return `${idea?.label || ""} · 第 ${step.index}/${step.total} 步`;
+  }
+
+  // -------------------------------------------------------------- interaction
+
+  function activateNode(nodeId, element) {
+    const node = graph.nodes.get(nodeId);
+    if (!node) return;
+    const route = state.route;
+    const viaKeyboard = element?.matches(":focus-visible") ?? false;
+
+    if (node.type === "core") {
+      if (route.level === "overview") return openInspector(node, { element, viaKeyboard });
+      return navigate({ level: "overview" });
     }
     if (node.type === "theme") {
-      navigateTo({ level: "theme", themeId: node.themeId });
-      return;
+      if (route.themeId === node.themeId && route.level === "theme") {
+        return openInspector(node, { element, viaKeyboard });
+      }
+      return navigate({ level: "theme", themeId: node.themeId });
     }
     if (node.type === "idea") {
-      navigateTo({ level: "idea", themeId: node.themeId, ideaId: node.ideaId });
-      return;
+      if (route.ideaId === node.ideaId && route.themeId === node.themeId) {
+        return openInspector(node, { element, viaKeyboard });
+      }
+      return navigate({ level: "idea", themeId: node.themeId, ideaId: node.ideaId });
     }
     if (node.type === "step") {
-      sourcesExpanded = false;
-      navigateTo({
+      return navigate({
         level: "step",
         themeId: node.themeId,
         ideaId: node.ideaId,
         stepId: node.stepId,
       });
-      return;
     }
     if (node.type === "source") {
-      navigateTo({
+      return navigate({
         level: "step",
         themeId: node.themeId,
         ideaId: node.ideaId,
         stepId: node.stepId,
         sourceId: node.refId,
-        sourcesExpanded: true,
-      });
-      return;
-    }
-    if (node.type === "conclusion") {
-      navigateTo({
-        level: "step",
-        themeId: node.themeId,
-        ideaId: node.ideaId,
-        stepId: "conclusion",
       });
     }
+    return openInspector(node, { element, viaKeyboard });
   }
 
-  function nodeRadius(id) {
-    const node = graph.nodes.get(id);
-    const scale = layoutTargets[id]?.scale ?? 1;
-    const width = nodeEls.get(id)?.offsetWidth || 36;
-    return width * scale * (node?.type === 'core' || node?.type === 'theme' ? 0.4 : 0.5);
-  }
-
-  const edgeEls = new Map();
-  const edgeSignalEls = new Map();
-
-  function drawEdges() {
-    const seen = new Set();
-    for (const e of visibleEdges) {
-      const a = displayPos.get(e.from);
-      const b = displayPos.get(e.to);
-      if (!a || !b) continue;
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const len = Math.hypot(dx, dy) || 1;
-      const ra = nodeRadius(e.from);
-      const rb = nodeRadius(e.to);
-      const x1 = a.x + (dx / len) * ra;
-      const y1 = a.y + (dy / len) * ra;
-      const x2 = b.x - (dx / len) * rb;
-      const y2 = b.y - (dy / len) * rb;
-      const freeSpan = Math.max(0, len - ra - rb);
-      const bend = ((e.id.charCodeAt(e.id.length - 1) % 2) * 2 - 1) * Math.min(18, freeSpan * 0.19);
-      const cx = (x1 + x2) / 2 + (-dy / len) * bend;
-      const cy = (y1 + y2) / 2 + (dx / len) * bend;
-      const d = `M${x1.toFixed(1)} ${y1.toFixed(1)} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`;
-      const hot = route.level === "step" && isOnPath(e.from) && isOnPath(e.to) && e.kind !== "source";
-      const cls = [
-        "edge",
-        e.kind === "source" ? "edge-source" : e.kind === "inferred" ? "edge-inferred" : e.kind === "recorded" ? "edge-recorded" : "edge-link",
-        hot ? "is-hot" : "",
-      ].filter(Boolean).join(" ");
-      const marker = e.kind === "recorded" ? "url(#arrow-recorded)" : e.kind === "inferred" ? "url(#arrow-inferred)" : "";
-      let path = edgeEls.get(e.id);
-      if (!path) {
-        path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        path.dataset.id = e.id;
-        edgeGroup.appendChild(path);
-        edgeEls.set(e.id, path);
-        const signal = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        signal.setAttribute("pathLength", "100");
-        edgeGroup.appendChild(signal);
-        edgeSignalEls.set(e.id, signal);
-      }
-      if (path.getAttribute("d") !== d) path.setAttribute("d", d);
-      if (path.getAttribute("class") !== cls) path.setAttribute("class", cls);
-      const signal = edgeSignalEls.get(e.id);
-      if (signal.getAttribute("d") !== d) signal.setAttribute("d", d);
-      signal.setAttribute("class", `edge-signal${hot ? " is-hot" : ""}${e.kind === "source" ? " is-source" : ""}`);
-      if (marker) path.setAttribute("marker-end", marker);
-      else path.removeAttribute("marker-end");
-      seen.add(e.id);
-    }
-    for (const [id, path] of edgeEls) {
-      if (!seen.has(id)) {
-        path.remove();
-        edgeEls.delete(id);
-        edgeSignalEls.get(id)?.remove();
-        edgeSignalEls.delete(id);
-      }
-    }
-  }
-
-  function applyCamera() {
-    const boost = camera.zoom < 0.98 ? Math.min(1.65, 1 / camera.zoom) : 1;
-    scene.style.setProperty("--label-boost", boost.toFixed(3));
-    scene.style.transform = `translate(${viewport.clientWidth / 2 + camera.x}px, ${viewport.clientHeight / 2 + camera.y}px) scale(${camera.zoom})`;
-  }
-
-  function screenToWorld(sx, sy) {
-    const rect = viewport.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2 + camera.x;
-    const cy = rect.top + rect.height / 2 + camera.y;
-    return {
-      x: (sx - cx) / camera.zoom,
-      y: (sy - cy) / camera.zoom,
-    };
-  }
-
-  function worldToScreen(wx, wy) {
-    const rect = viewport.getBoundingClientRect();
-    return {
-      x: rect.left + rect.width / 2 + camera.x + wx * camera.zoom,
-      y: rect.top + rect.height / 2 + camera.y + wy * camera.zoom,
-    };
-  }
-
-  function zoomAt(clientX, clientY, factor) {
-    const rect = viewport.getBoundingClientRect();
-    const lx = clientX - rect.left - rect.width / 2 - camera.x;
-    const ly = clientY - rect.top - rect.height / 2 - camera.y;
-    camera.zoom = clamp(camera.zoom * factor, 0.25, 2.5);
-    const nx = clientX - rect.left - rect.width / 2;
-    const ny = clientY - rect.top - rect.height / 2;
-    camera.x = nx - lx * camera.zoom;
-    camera.y = ny - ly * camera.zoom;
-    applyCamera();
-  }
-
-  function updateChrome() {
-    root.dataset.level = route.level;
-    backBtn.hidden = route.level === "overview" && !route.sourceId;
-    breadcrumb.innerHTML = "";
-    const crumbs = [{ label: "概览", route: { level: "overview" } }];
-    if (route.themeId) {
-      const t = graph.nodes.get(`theme:${route.themeId}`);
-      crumbs.push({ label: t?.label || route.themeId, route: { level: "theme", themeId: route.themeId } });
-    }
-    if (route.ideaId) {
-      const i = graph.nodes.get(`idea:${route.themeId}/${route.ideaId}`);
-      crumbs.push({
-        label: i?.label?.slice(0, 12) + (i?.label?.length > 12 ? "…" : "") || route.ideaId,
-        route: { level: "idea", themeId: route.themeId, ideaId: route.ideaId },
-      });
-    }
-    if (route.stepId) {
-      const label =
-        route.stepId === "conclusion"
-          ? "阶段理解"
-          : (() => {
-              const s = graph.nodes.get(`step:${route.themeId}/${route.ideaId}/${route.stepId}`);
-              const text = s?.label || route.stepId;
-              return text.length > 10 ? `${text.slice(0, 10)}…` : text;
-            })();
-      crumbs.push({
-        label,
-        route: {
-          level: "step",
-          themeId: route.themeId,
-          ideaId: route.ideaId,
-          stepId: route.stepId,
-        },
-      });
-    }
-    const shownCrumbs = isTightViewport() && crumbs.length > 2 ? [crumbs[1], crumbs.at(-1)] : crumbs;
-    shownCrumbs.forEach((c, idx) => {
-      if (idx) {
-        const sep = document.createElement("span");
-        sep.className = "crumb-sep";
-        sep.textContent = "›";
-        breadcrumb.appendChild(sep);
-      }
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "crumb";
-      btn.textContent = c.label;
-      btn.addEventListener("click", () => navigateTo(c.route));
-      breadcrumb.appendChild(btn);
+  /** Open the popover for a node that is not part of the hash route. */
+  function openInspector(node, { element, viaKeyboard, keepPosition } = {}) {
+    state.selectedId = node.id;
+    state.popover = { nodeId: node.id, mode: "node" };
+    applySelection();
+    const content = inspectorContent(node);
+    popover.show({
+      ...content,
+      anchor: anchorOf(node.id),
+      avoid: avoidPoints(node.id),
+      viaKeyboard,
+      keepPosition,
+      returnFocus: element || scene.nodeElement(node.id),
     });
   }
 
-  function updatePopover() {
-    const anchor = anchorId();
-    if (!anchor) {
-      popover.hidden = true;
+  function handlePopoverAction(action, value) {
+    const current = state.popover ? graph.nodes.get(state.popover.nodeId) : null;
+    if (action === "expand-sources" && current?.type === "step") {
+      state.expanded.add(current.id);
+      render();
+      openInspector(current, { keepPosition: true, element: scene.nodeElement(current.id) });
       return;
     }
-
-    if (route.stepId === "conclusion") {
-      const node = graph.nodes.get(anchor);
-      if (!node) {
-        popover.hidden = true;
-        return;
-      }
-      popover.hidden = false;
-      const pending = node.pendingTitles || [];
-      const evidence = (node.evidence || [])
-        .map((item) => {
-          const flag = item.connection === "inferred" ? " · 关联待确认" : "";
-          return `<li>${escapeHtml(item.date || "")} ${escapeHtml(item.title || "")}${flag}</li>`;
-        })
-        .join("");
-      popoverTitle.textContent = node.summary || "阶段理解";
-      popoverBody.innerHTML = `
-        <p class="popover-flag">整理用的阶段短句，不是已经确认的新结论。</p>
-        ${node.status ? `<p class="popover-meta">${escapeHtml(node.status)}</p>` : ""}
-        ${pending.length ? `<p class="popover-flag">待确认：${escapeHtml(pending.join("、"))}</p>` : ""}
-        <p class="popover-sources-label">依据</p>
-        <ul class="popover-evidence">${evidence}</ul>
-      `;
-      positionPopover(anchor);
+    if (action === "collapse-sources" && current?.type === "step") {
+      state.expanded.delete(current.id);
+      render();
+      openInspector(current, { keepPosition: true, element: scene.nodeElement(current.id) });
       return;
     }
-
-    const stepKey = `step:${route.themeId}/${route.ideaId}/${route.stepId}`;
-    const step = graph.nodes.get(stepKey);
-    if (!step) {
-      popover.hidden = true;
-      return;
-    }
-
-    popover.hidden = false;
-
-    if (route.sourceId) {
-      const srcId = `source:${route.themeId}/${route.ideaId}/${route.stepId}/${route.sourceId}`;
-      const src = graph.nodes.get(srcId);
-      popoverTitle.textContent = src?.label || "来源";
-      popoverBody.innerHTML = `
-        <button type="button" class="popover-back" id="popover-back-step">← 返回步骤说明</button>
-        <p class="popover-lead">${escapeHtml(src?.text || "")}</p>
-        <p class="popover-meta">${escapeHtml(src?.date || "")} · ${escapeHtml(src?.kind || "")}</p>
-        <blockquote class="popover-quote">${escapeHtml(src?.quote || "")}</blockquote>
-      `;
-      popoverBody.querySelector("#popover-back-step")?.addEventListener("click", () => {
-        navigateTo({
-          level: "step",
-          themeId: route.themeId,
-          ideaId: route.ideaId,
-          stepId: route.stepId,
-          sourcesExpanded: true,
-        });
+    if (action === "open-source" && current) {
+      const step = current.type === "step" ? current : graph.step(current.themeId, current.ideaId, current.stepId);
+      state.expanded.add(step.id);
+      navigate({
+        level: "step",
+        themeId: step.themeId,
+        ideaId: step.ideaId,
+        stepId: step.stepId,
+        sourceId: value,
       });
+      return;
+    }
+    if (action === "back-to-step" && current) {
+      navigate({
+        level: "step",
+        themeId: current.themeId,
+        ideaId: current.ideaId,
+        stepId: current.stepId,
+      });
+      return;
+    }
+    if (action === "open-idea") {
+      const [themeId, ideaId] = value.split("/");
+      navigate({ level: "idea", themeId, ideaId });
+    }
+  }
+
+  function navigate(route) {
+    const hash = buildHash(route);
+    if (hash === (location.hash || "#/")) {
+      applyRoute(normalizeRoute(parseHash(hash), graph), { force: true });
+      return;
+    }
+    location.hash = hash;
+  }
+
+  function applyRoute(next, { force = false } = {}) {
+    const previous = state.route;
+    const structuralChange =
+      previous.themeId !== next.themeId ||
+      previous.ideaId !== next.ideaId ||
+      (previous.level === "overview") !== (next.level === "overview");
+    state.route = next;
+
+    if (structuralChange) state.expanded.clear();
+
+    if (next.level === "step") {
+      const step = graph.step(next.themeId, next.ideaId, next.stepId);
+      if (!step) {
+        state.route = { level: "idea", themeId: next.themeId, ideaId: next.ideaId };
+      } else if (next.sourceId) {
+        state.expanded.add(step.id);
+      }
+    }
+
+    const route = state.route;
+    if (route.level === "step") {
+      const step = graph.step(route.themeId, route.ideaId, route.stepId);
+      const source = route.sourceId
+        ? graph.nodes.get(`source:${route.themeId}/${route.ideaId}/${route.stepId}/${route.sourceId}`)
+        : null;
+      const target = source || step;
+      state.selectedId = target.id;
+      state.popover = { nodeId: target.id, mode: source ? "source" : "node" };
     } else {
-      const inferred = step.connection === "inferred";
-      popoverTitle.textContent = step.label;
-      const refsHtml = [...new Map((step.refs || []).map((ref) => [ref.id, ref])).values()]
-        .map((r) => {
-          const srcId = `source:${route.themeId}/${route.ideaId}/${route.stepId}/${r.id}`;
-          const src = graph.nodes.get(srcId);
-          return `<button type="button" class="source-entry" data-ref="${escapeHtml(r.id)}">${escapeHtml(src?.label || r.id)}</button>`;
-        })
-        .join("");
-      popoverBody.innerHTML = `
-        ${inferred ? '<p class="popover-flag">关联待确认</p>' : ""}
-        <p class="popover-lead">${escapeHtml(step.body || "")}</p>
-        <p class="popover-meta">${escapeHtml(step.date || "")} · ${escapeHtml(step.kind || "")}</p>
-        ${refsHtml ? `<div class="popover-sources"><span class="popover-sources-label">来源</span>${refsHtml}</div>` : ""}
-        <button type="button" class="popover-expand-sources" ${sourcesExpanded ? "hidden" : ""}>展开来源节点</button>
-      `;
-      popoverBody.querySelector(".popover-expand-sources")?.addEventListener("click", () => {
-        sourcesExpanded = true;
-        history.pushState({ sourcesExpanded: true }, "", buildHash(route));
-        rebuild();
-      });
-      popoverBody.querySelectorAll(".source-entry").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const refId = btn.getAttribute("data-ref");
-          sourcesExpanded = true;
-          navigateTo({
-            level: "step",
-            themeId: route.themeId,
-            ideaId: route.ideaId,
-            stepId: route.stepId,
-            sourceId: refId,
-            sourcesExpanded: true,
-          });
-        });
+      state.selectedId = null;
+      state.popover = null;
+      popover.close();
+    }
+
+    render({ refit: structuralChange || force });
+
+    if (state.popover) {
+      const node = graph.nodes.get(state.popover.nodeId);
+      const content = inspectorContent(node);
+      scene.frame(0); // refresh screen positions so the popover can place itself
+      popover.show({
+        ...content,
+        anchor: anchorOf(node.id),
+        avoid: avoidPoints(node.id),
+        returnFocus: scene.nodeElement(node.id),
       });
     }
-
-    positionPopover(anchor);
   }
 
-  function positionPopover(anchorId) {
-    const pos = displayPos.get(anchorId);
-    if (!pos) return;
-    if (lastAnchorNodeId !== anchorId) {
-      popoverManualPos = null;
-      lastAnchorNodeId = anchorId;
+  /** Screen centres of the other visible nodes, so the popover can dodge them. */
+  function avoidPoints(excludeId) {
+    const points = [];
+    for (const id of layout.placements.keys()) {
+      if (id === excludeId) continue;
+      const screen = scene.screenOf(id);
+      if (screen) points.push(screen);
     }
-    const screen = worldToScreen(pos.x, pos.y);
-    const pw = Math.min(320, Math.max(260, viewport.clientWidth * 0.26));
-    popover.style.width = `${pw}px`;
-
-    if (popoverManualPos) {
-      popover.style.left = `${popoverManualPos.x}px`;
-      popover.style.top = `${popoverManualPos.y}px`;
-    } else if (viewport.clientWidth < 650) {
-      const rect = viewport.getBoundingClientRect();
-      const panelHeight = rect.width < 380 ? 134 : Math.min(160, window.innerHeight * .31);
-      popover.style.left = `${screen.x < rect.left + rect.width / 2 ? rect.left + 8 : rect.right - pw - 8}px`;
-      popover.style.top = `${rect.bottom - panelHeight - 8}px`;
-    } else {
-      const rect = viewport.getBoundingClientRect();
-      const maxH = Math.min(window.innerHeight * 0.55, 360);
-      const cx = rect.left + rect.width / 2;
-      const onLeft = screen.x < cx;
-      const left = onLeft ? rect.left + 16 : rect.right - pw - 16;
-      let top = screen.y - 36;
-      const minTop = rect.top + 52;
-      const maxTop = Math.max(minTop, rect.bottom - maxH - 12);
-      top = Math.min(Math.max(top, minTop), maxTop);
-      popover.style.left = `${left}px`;
-      popover.style.top = `${top}px`;
-    }
-
-    popoverConnector.style.left = `${screen.x}px`;
-    popoverConnector.style.top = `${screen.y}px`;
-    const pr = popover.getBoundingClientRect();
-    popoverConnector.style.width = `${Math.max(20, Math.hypot(pr.left + pr.width / 2 - screen.x, pr.top - screen.y))}px`;
-    const ang = Math.atan2(pr.top - screen.y, pr.left + pr.width / 2 - screen.x);
-    popoverConnector.style.transform = `rotate(${ang}rad)`;
+    return points;
   }
 
-  function updateTabOrder() {
-    const order = [];
-    if (route.level === "overview") order.push("core", ...graph.themes.map((t) => `theme:${t.id}`));
-    else if (route.level === "theme") {
-      order.push(`theme:${route.themeId}`, ...graph.themes.filter((t) => t.id !== route.themeId).map((t) => `theme:${t.id}`));
-      const theme = graph.themes.find((t) => t.id === route.themeId);
-      for (const idea of theme?.ideas || []) order.push(`idea:${route.themeId}/${idea.id}`);
-    } else if (route.level === "idea" || route.level === "step") {
-      order.push(`theme:${route.themeId}`);
-      const theme = graph.themes.find((t) => t.id === route.themeId);
-      for (const idea of theme?.ideas || []) order.push(`idea:${route.themeId}/${idea.id}`);
-      const active = getIdea(graph, route.themeId, route.ideaId);
-      for (const st of active?.nodes || []) order.push(`step:${route.themeId}/${route.ideaId}/${st.id}`);
-      order.push(`conclusion:${route.themeId}/${route.ideaId}`);
-      if (sourcesExpanded && route.stepId) {
-        const step = graph.nodes.get(`step:${route.themeId}/${route.ideaId}/${route.stepId}`);
-        for (const r of step?.refs || []) order.push(`source:${route.themeId}/${route.ideaId}/${route.stepId}/${r.id}`);
+  function anchorOf(nodeId) {
+    const screen = scene.screenOf(nodeId);
+    if (!screen) return null;
+    return { x: screen.x, y: screen.y, r: scene.radiusOf(nodeId) };
+  }
+
+  // ----------------------------------------------------------- popover bodies
+
+  function inspectorContent(node) {
+    if (node.type === "core") {
+      return {
+        title: "数字大脑",
+        kicker: meta(["SECOND BRAIN", `${graph.themes().length} 个主题`]),
+        body: paragraph(
+          "这里是全部主题的汇聚点。点任意一个主题脑进入它的问题，再沿主线查看每一步的记录与来源。"
+        ),
+        actions: "",
+      };
+    }
+    if (node.type === "theme") {
+      const ideas = graph.ideas(node.themeId);
+      return {
+        title: node.label,
+        kicker: meta([node.code, node.latin, node.latest ? `最近 ${node.latest}` : ""]),
+        body:
+          paragraph(node.description || "") +
+          `<ul class="popover-list">${ideas
+            .map(
+              (idea) =>
+                `<li><button type="button" class="popover-link" data-action="open-idea" data-value="${
+                  node.themeId
+                }/${idea.ideaId}"><span>${escapeHtml(idea.label)}</span><small>${escapeHtml(
+                  `${idea.stepCount} 步 · ${idea.status || ""}`
+                )}</small></button></li>`
+            )
+            .join("")}</ul>`,
+        actions: "",
+      };
+    }
+    if (node.type === "idea") {
+      return {
+        title: node.label,
+        kicker: meta(["问题", node.status, node.updated]),
+        body:
+          paragraph(node.summary || "") +
+          paragraph(`主线共 ${node.stepCount} 步，沿箭头方向从起点走到当前理解。`, "popover-hint"),
+        actions: "",
+      };
+    }
+    if (node.type === "conclusion") {
+      const pending = node.unconfirmed?.length
+        ? paragraph(
+            `以下步骤的承接关系由整理得出，仍待确认：${node.unconfirmed.join("、")}。`,
+            "popover-hint popover-hint--pending"
+          )
+        : paragraph("主线上的每一步都有记录支持。", "popover-hint");
+      return {
+        title: "阶段理解",
+        kicker: meta([node.status]),
+        body:
+          paragraph(node.summary || "") +
+          `<h3 class="popover-sub">依据</h3><ol class="popover-evidence">${node.evidence
+            .map(
+              (e) =>
+                `<li><span>${escapeHtml(e.title)}</span><small>${escapeHtml(e.date || "")}${
+                  e.connection === "inferred" ? " · 关联待确认" : ""
+                }</small></li>`
+            )
+            .join("")}</ol>` +
+          pending,
+        actions: "",
+      };
+    }
+    if (node.type === "source") {
+      return {
+        title: node.label,
+        kicker: meta([originLabel(node.origin), node.kind, node.date]),
+        body:
+          (node.quote ? `<blockquote class="popover-quote">${escapeHtml(node.quote)}</blockquote>` : "") +
+          `<div class="popover-raw">${escapeHtml(node.text || "")}</div>` +
+          paragraph(node.resolved ? "以上为本地记录中的原文。" : "本地缺少这条原文。", "popover-hint"),
+        actions: `<button type="button" class="popover-btn" data-action="back-to-step">返回节点说明</button>`,
+      };
+    }
+
+    const sources = graph.sources(node.id);
+    const expanded = state.expanded.has(node.id);
+    const inferredNote =
+      node.connection === "inferred"
+        ? paragraph("与上一步之间是整理出的关联，时间先后不等于因果，关联待确认。", "popover-hint popover-hint--pending")
+        : "";
+    return {
+      title: node.label,
+      kicker: meta([`步骤 ${String(node.index).padStart(2, "0")}/${node.total}`, node.kind, node.date]),
+      body:
+        paragraph(node.body || "") +
+        inferredNote +
+        (sources.length
+          ? `<h3 class="popover-sub">来源 ${sources.length}</h3><ul class="popover-list">${sources
+              .map(
+                (source) =>
+                  `<li><button type="button" class="popover-link" data-action="open-source" data-value="${escapeHtml(
+                    source.refId
+                  )}"><span>${escapeHtml(source.quote || source.label)}</span><small>${escapeHtml(
+                    `${originLabel(source.origin)} · ${source.date || ""}`
+                  )}</small></button></li>`
+              )
+              .join("")}</ul>`
+          : paragraph("这一步没有引用记录。", "popover-hint")),
+      actions: sources.length
+        ? `<button type="button" class="popover-btn" data-action="${
+            expanded ? "collapse-sources" : "expand-sources"
+          }">${expanded ? "收起来源节点" : `在画布展开来源 (${sources.length})`}</button>`
+        : "",
+    };
+  }
+
+  // ------------------------------------------------------------------ gestures
+
+  const pointers = new Map();
+  let panning = null;
+  let pinch = null;
+
+  el.stage.addEventListener("pointerdown", (event) => {
+    if (event.target.closest(".node")) return;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size === 1) {
+      panning = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: 0 };
+      try {
+        el.stage.setPointerCapture(event.pointerId);
+      } catch {
+        /* synthetic pointers have nothing to capture */
       }
+    } else if (pointers.size === 2) {
+      panning = null;
+      pinch = pinchState();
     }
-    let tab = 1;
-    for (const id of order) {
-      const el = nodeEls.get(id);
-      if (el && visibleIds.has(id)) el.tabIndex = tab++;
-    }
-  }
+  });
 
-  function animatePositions() {
-    const snap = !motionOn || reducedMotion;
-    for (const id of visibleIds) {
-      const t = layoutTargets[id] || { x: 0, y: 0 };
-      let p = displayPos.get(id);
-      if (!p) {
-        p = { x: t.x, y: t.y };
-        displayPos.set(id, p);
+  el.stage.addEventListener("pointermove", (event) => {
+    if (!pointers.has(event.pointerId)) return;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pinch && pointers.size >= 2) {
+      const next = pinchState();
+      if (next.dist > 0 && pinch.dist > 0) {
+        camera.zoomBy(next.dist / pinch.dist, next.center);
+        camera.panBy(next.center.x - pinch.center.x, next.center.y - pinch.center.y);
       }
-      const dx = t.x - p.x;
-      const dy = t.y - p.y;
-      if (snap || Math.hypot(dx, dy) < 0.4) {
-        p.x = t.x;
-        p.y = t.y;
-      } else {
-        p.x += dx * 0.14;
-        p.y += dy * 0.14;
-      }
-      const el = nodeEls.get(id);
-      if (el) {
-        el.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -50%) scale(var(--node-scale, 1))`;
-      }
+      pinch = next;
+      return;
     }
-    drawEdges();
-    if (route.level === "step" && !popover.hidden) {
-      const anchor = anchorId();
-      if (anchor) positionPopover(anchor);
+    if (panning && panning.id === event.pointerId) {
+      const dx = event.clientX - panning.x;
+      const dy = event.clientY - panning.y;
+      panning.moved += Math.abs(dx) + Math.abs(dy);
+      panning.x = event.clientX;
+      panning.y = event.clientY;
+      camera.panBy(dx, dy);
     }
-    requestAnimationFrame(animatePositions);
+  });
+
+  const releasePointer = (event) => {
+    pointers.delete(event.pointerId);
+    if (pointers.size < 2) pinch = null;
+    if (panning && panning.id === event.pointerId) {
+      if (panning.moved < 6) {
+        popover.close();
+      }
+      panning = null;
+    }
+  };
+  el.stage.addEventListener("pointerup", releasePointer);
+  el.stage.addEventListener("pointercancel", releasePointer);
+
+  function pinchState() {
+    const [a, b] = [...pointers.values()];
+    return {
+      dist: Math.hypot(a.x - b.x, a.y - b.y),
+      center: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+    };
   }
 
-  function clamp(v, lo, hi) {
-    return Math.max(lo, Math.min(hi, v));
-  }
-
-  function shortText(s, n) {
-    const text = String(s || "");
-    return text.length > n ? `${text.slice(0, n)}…` : text;
-  }
-
-  function escapeHtml(s) {
-    return String(s)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
-
-  function truncate(s, n) {
-    if (s.length <= n) return s;
-    return s.slice(0, n) + "…";
-  }
-
-  // Events
-  viewport.addEventListener(
+  el.stage.addEventListener(
     "wheel",
-    (e) => {
-      if (popover.contains(e.target)) return;
-      e.preventDefault();
-      cameraManual = true;
-      const factor = e.deltaY > 0 ? 0.92 : 1.08;
-      zoomAt(e.clientX, e.clientY, factor);
+    (event) => {
+      if (event.target.closest(".popover")) return;
+      event.preventDefault();
+      const factor = Math.exp(-event.deltaY * (event.ctrlKey ? 0.01 : 0.0016));
+      camera.zoomBy(factor, { x: event.clientX, y: event.clientY });
     },
     { passive: false }
   );
 
-  viewport.addEventListener("pointerdown", (e) => {
-    if (e.target.closest(".node")) return;
-    panning = true;
-    cameraManual = true;
-    panStart = { x: e.clientX, y: e.clientY, camX: camera.x, camY: camera.y };
-    viewport.setPointerCapture(e.pointerId);
-  });
-  viewport.addEventListener("pointermove", (e) => {
-    if (!panning) return;
-    camera.x = panStart.camX + (e.clientX - panStart.x);
-    camera.y = panStart.camY + (e.clientY - panStart.y);
-    applyCamera();
-      if (route.level === "step") {
-        const anchor = anchorId();
-        if (anchor) positionPopover(anchor);
-      }
-  });
-  viewport.addEventListener("pointerup", () => {
-    panning = false;
-  });
-
-  viewport.addEventListener("touchstart", (e) => {
-    if (e.touches.length === 2) {
-      const [a, b] = e.touches;
-      pinch = {
-        dist: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
-        zoom: camera.zoom,
-        midX: (a.clientX + b.clientX) / 2,
-        midY: (a.clientY + b.clientY) / 2,
-      };
-      cameraManual = true;
-    }
-  }, { passive: true });
-  viewport.addEventListener("touchmove", (e) => {
-    if (e.touches.length === 2 && pinch) {
-      e.preventDefault();
-      const [a, b] = e.touches;
-      const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-      const factor = dist / pinch.dist;
-      camera.zoom = clamp(pinch.zoom * factor, 0.25, 2.5);
-      applyCamera();
-    } else if (e.touches.length === 1 && !e.target.closest(".node")) {
-      // single finger pan handled via pointer events on supported browsers
-    }
-  }, { passive: false });
-
-  zoomIn.addEventListener("click", () => {
-    cameraManual = true;
-    const rect = viewport.getBoundingClientRect();
-    zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 1.15);
-  });
-  zoomOut.addEventListener("click", () => {
-    cameraManual = true;
-    const rect = viewport.getBoundingClientRect();
-    zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 0.87);
-  });
-  zoomReset.addEventListener("click", () => {
-    cameraManual = false;
+  el.zoomIn.addEventListener("click", () => camera.zoomBy(1.22));
+  el.zoomOut.addEventListener("click", () => camera.zoomBy(1 / 1.22));
+  el.zoomReset.addEventListener("click", () => {
+    camera.reset();
     fitCamera();
   });
 
-  backBtn.addEventListener("click", () => {
-    if (route.sourceId) {
-      navigateTo({
-        level: "step",
-        themeId: route.themeId,
-        ideaId: route.ideaId,
-        stepId: route.stepId,
-        sourcesExpanded: true,
-      });
-      return;
-    }
-    if (route.level === "step" && sourcesExpanded) {
-      sourcesExpanded = false;
-      history.pushState({ sourcesExpanded: false }, "", buildHash(route));
-      rebuild();
-      return;
-    }
-    const next = backOneLevel(route);
-    sourcesExpanded = false;
-    navigateTo(next);
+  el.back.addEventListener("click", () => navigate(backOneLevel(state.route)));
+  el.breadcrumb.addEventListener("click", (event) => {
+    const crumb = event.target.closest(".crumb");
+    if (!crumb) return;
+    location.hash = crumb.dataset.hash;
   });
 
-  popoverClose.addEventListener("click", closePopover);
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !popover.hidden) {
-      closePopover();
+  el.motion.addEventListener("click", () => applyMotion(!state.motion));
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      if (popover.isOpen) return popover.close();
+      if (state.route.level !== "overview") navigate(backOneLevel(state.route));
+      return;
+    }
+    if (event.target.closest("input, textarea")) return;
+    if (event.key === "+" || event.key === "=") camera.zoomBy(1.2);
+    if (event.key === "-" || event.key === "_") camera.zoomBy(1 / 1.2);
+    if (event.key === "0") {
+      camera.reset();
+      fitCamera();
     }
   });
 
-  function closePopover() {
-    const id = anchorId();
-    const el = id ? nodeEls.get(id) : null;
-    navigateTo({ level: "idea", themeId: route.themeId, ideaId: route.ideaId });
-    requestAnimationFrame(() => el?.focus());
+  window.addEventListener("hashchange", () => {
+    applyRoute(normalizeRoute(parseHash(location.hash), graph));
+  });
+
+  let resizeTimer = null;
+  window.addEventListener("resize", () => {
+    measureInsets();
+    background.resize();
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => render({ refit: !camera.userAdjusted }), 60);
+  });
+
+  function measureInsets() {
+    document.documentElement.style.setProperty("--inset-top", `${el.topBar.offsetHeight}px`);
+    document.documentElement.style.setProperty("--inset-bottom", `${el.bottomBar.offsetHeight}px`);
   }
 
-  ["pointerdown", "wheel", "touchstart"].forEach((ev) => {
-    popover.addEventListener(ev, (e) => e.stopPropagation(), { passive: false });
-  });
+  function applyMotion(on, { silent = false } = {}) {
+    state.motion = on;
+    el.app.dataset.motion = on ? "on" : "off";
+    el.motion.setAttribute("aria-pressed", on ? "false" : "true");
+    el.motion.textContent = on ? "动效 开" : "动效 关";
+    camera.setInstant(!on);
+    scene.setInstant(!on);
+    if (!on) camera.snap();
+    if (!silent) render();
+  }
 
-  let dragPopover = false;
-  popoverHandle.addEventListener("pointerdown", (e) => {
-    if (e.target.closest(".popover-close")) return;
-    dragPopover = true;
-    const r = popover.getBoundingClientRect();
-    popoverDragOffset = { x: e.clientX - r.left, y: e.clientY - r.top };
-    popoverHandle.setPointerCapture(e.pointerId);
-  });
-  popoverHandle.addEventListener("pointermove", (e) => {
-    if (!dragPopover) return;
-    popoverManualPos = { x: e.clientX - popoverDragOffset.x, y: e.clientY - popoverDragOffset.y };
-    popover.style.left = `${popoverManualPos.x}px`;
-    popover.style.top = `${popoverManualPos.y}px`;
-  });
-  popoverHandle.addEventListener("pointerup", () => {
-    dragPopover = false;
-  });
+  // ---------------------------------------------------------------- main loop
 
-  motionToggle.addEventListener("click", () => {
-    motionOn = !motionOn;
-    root.dataset.motion = motionOn ? "on" : "off";
-    motionToggle.setAttribute("aria-pressed", motionOn ? "false" : "true");
-    motionToggle.textContent = motionOn ? "动效" : "静态";
-    bg.setMotion(motionOn);
-  });
+  background.resize();
+  let last = performance.now();
+  function tick(now) {
+    const dt = Math.min((now - last) / 1000, 0.05);
+    last = now;
+    if (state.motion) background.frame(dt, camera.current, true);
+    scene.frame(dt);
+    syncPopoverAnchor();
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
 
-  introSkip.addEventListener("click", () => {
-    bg.skipIntro();
-    introOverlay.hidden = true;
-    introDone = true;
-  });
+  function syncPopoverAnchor() {
+    if (!popover.isOpen || !state.popover) {
+      scene.setConnector(null);
+      return;
+    }
+    const anchor = anchorOf(state.popover.nodeId);
+    if (!anchor) return;
+    popover.reposition(anchor);
+    const rect = popover.rect;
+    const attach = {
+      x: Math.min(Math.max(anchor.x, rect.left + 6), rect.right - 6),
+      y: Math.min(Math.max(anchor.y, rect.top + 6), rect.bottom - 6),
+    };
+    const dx = attach.x - anchor.x;
+    const dy = attach.y - anchor.y;
+    const d = Math.hypot(dx, dy) || 1;
+    scene.setConnector({
+      from: { x: anchor.x + (dx / d) * (anchor.r + 4), y: anchor.y + (dy / d) * (anchor.r + 4) },
+      to: attach,
+    });
+  }
 
-  window.addEventListener("hashchange", () => applyRouteFromHash());
-  window.addEventListener("popstate", () => applyRouteFromHash());
+  if (state.route.level !== "overview") applyRoute(state.route, { force: true });
+}
 
-  window.addEventListener("resize", () => {
-    rebuild();
-    applyCamera();
-    if (!cameraManual) fitCamera();
-  });
+function normalizeRoute(route, graph) {
+  if (route.level === "overview") return route;
+  if (!graph.theme(route.themeId)) return { level: "overview" };
+  if (route.level === "theme") return route;
+  if (!graph.idea(route.themeId, route.ideaId)) return { level: "theme", themeId: route.themeId };
+  if (route.level === "idea") return route;
+  const step = graph.step(route.themeId, route.ideaId, route.stepId);
+  if (!step) return { level: "idea", themeId: route.themeId, ideaId: route.ideaId };
+  return route;
+}
 
-  // Initial hash sync without double push
-  if (!location.hash) history.replaceState(null, "", "#/");
-  route = parseHash(location.hash);
-  sourcesExpanded = !!route.sourcesExpanded;
-  rebuild();
-  applyCamera();
-  if (!cameraManual) fitCamera();
-  requestAnimationFrame(animatePositions);
+function meta(parts) {
+  return parts
+    .filter(Boolean)
+    .map((p) => `<span>${escapeHtml(p)}</span>`)
+    .join('<i aria-hidden="true">·</i>');
+}
 
-  return { graph, navigateTo, route: () => route };
+function paragraph(text, className = "popover-text") {
+  if (!text) return "";
+  return `<p class="${className}">${escapeHtml(text)}</p>`;
+}
+
+function originLabel(origin) {
+  if (origin === "flomo") return "flomo 记录";
+  if (origin === "conversation") return "产品讨论";
+  if (origin === "sample") return "示例数据";
+  if (origin === "missing") return "来源缺失";
+  return origin || "";
+}
+
+function shorten(text, max) {
+  const value = String(text || "");
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
