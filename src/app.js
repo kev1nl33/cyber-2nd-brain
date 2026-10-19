@@ -11,12 +11,14 @@ import { boundsOf, computeLayout } from "./layout.js";
 import { createPopover } from "./popover.js";
 import { backOneLevel, buildHash, parseHash } from "./route.js";
 import { createScene } from "./scene.js";
+import { createStars } from "./stars.js";
 
 export function startApp() {
   const el = {
     app: document.getElementById("app"),
     stage: document.getElementById("stage"),
     nodes: document.getElementById("nodes"),
+    stars: document.getElementById("stars"),
     edges: document.getElementById("edges"),
     tags: document.getElementById("edge-tags"),
     bg: document.getElementById("bg-canvas"),
@@ -58,10 +60,21 @@ export function startApp() {
     onActivate: activateNode,
     onHoverChange: () => {},
   });
+  // lessons.js 缺失时这里什么都不画，其余页面不受影响。
+  // 天秤铺在画布背景上，不跟链条走；lessons.js 缺失时这里什么都不画。
+  const stars = createStars({
+    layer: el.stars,
+    svg: el.edges,
+    onOpen: openStar,
+  });
+  const lessons = globalThis.window?.LESSONS?.lessons || [];
+  const patterns = globalThis.window?.LESSONS?.patterns || [];
+
   const popover = createPopover({
     el: el.popover,
     onClose: () => {
       state.popover = null;
+      stars.setOpen(null);
       scene.setConnector(null);
     },
     onAction: handlePopoverAction,
@@ -248,6 +261,54 @@ export function startApp() {
     return openInspector(node, { element, viaKeyboard });
   }
 
+  /** 点一颗星：经验星开断语卡，主星开模式卡。两张卡都挂在星点上，不跟链条节点走。 */
+  function openStar(target) {
+    if (target.kind === "pattern") return openPattern(target.id);
+    openLesson(target.id);
+  }
+
+  function openLesson(lessonId) {
+    const lesson = lessons.find((item) => item.id === lessonId);
+    if (!lesson) return;
+    const idea = ideaOf(lesson.ideaId);
+    if (!idea) return;
+    state.selectedId = null;
+    state.popover = { nodeId: idea.id, mode: "verdict", lessonId };
+    applySelection();
+    stars.setOpen(lessonId);
+    scene.frame(0);
+    popover.show({
+      ...lessonContent(lesson, idea),
+      anchor: stars.anchorOf(lessonId),
+      avoid: [],
+      returnFocus: stars.starElement(lessonId),
+    });
+  }
+
+  function openPattern(patternId) {
+    const pattern = patterns.find((item) => item.id === patternId);
+    if (!pattern) return;
+    state.selectedId = null;
+    state.popover = { nodeId: null, mode: "pattern", patternId };
+    applySelection();
+    stars.setOpen(patternId);
+    scene.frame(0);
+    popover.show({
+      ...patternContent(pattern),
+      anchor: stars.anchorOf(patternId),
+      avoid: [],
+      returnFocus: stars.starElement(patternId),
+    });
+  }
+
+  function ideaOf(ideaId) {
+    for (const theme of graph.themes()) {
+      const idea = graph.ideas(theme.themeId).find((item) => item.ideaId === ideaId);
+      if (idea) return idea;
+    }
+    return null;
+  }
+
   /** Open the popover for a node that is not part of the hash route. */
   function openInspector(node, { element, viaKeyboard, keepPosition } = {}) {
     state.selectedId = node.id;
@@ -302,6 +363,11 @@ export function startApp() {
     if (action === "open-idea") {
       const [themeId, ideaId] = value.split("/");
       navigate({ level: "idea", themeId, ideaId });
+      return;
+    }
+    if (action === "open-step") {
+      const [themeId, ideaId, stepId] = value.split("/");
+      navigate({ level: "step", themeId, ideaId, stepId });
     }
   }
 
@@ -351,14 +417,17 @@ export function startApp() {
     render({ refit: structuralChange || force });
 
     if (state.popover) {
-      const node = graph.nodes.get(state.popover.nodeId);
-      const content = inspectorContent(node);
+      const node = state.popover.nodeId ? graph.nodes.get(state.popover.nodeId) : null;
+      const lesson = state.popover.lessonId ? lessons.find((item) => item.id === state.popover.lessonId) : null;
+      const pattern = state.popover.patternId ? patterns.find((item) => item.id === state.popover.patternId) : null;
+      const content = lesson ? lessonContent(lesson, node) : pattern ? patternContent(pattern) : inspectorContent(node);
       scene.frame(0); // refresh screen positions so the popover can place itself
+      const starId = lesson?.id || pattern?.id || null;
       popover.show({
         ...content,
-        anchor: anchorOf(node.id),
-        avoid: avoidPoints(node.id),
-        returnFocus: scene.nodeElement(node.id),
+        anchor: starId ? stars.anchorOf(starId) : anchorOf(node.id),
+        avoid: starId ? [] : avoidPoints(node.id),
+        returnFocus: starId ? stars.starElement(starId) : scene.nodeElement(node.id),
       });
     }
   }
@@ -381,6 +450,70 @@ export function startApp() {
   }
 
   // ----------------------------------------------------------- popover bodies
+
+  /**
+   * 断语卡：一句经验，下面一行出处。
+   * 「含推想」只在核心结论本身是推想时出现。数据里没有单独的字段标这一层，
+   * 只能从原文看：hasInference 几乎条条都是真，区分不了；改看句子里有没有
+   * 把推想说破的收尾（「原文没说」「原文没写」「先只当」）。没有就不出这个标记。
+   */
+  function lessonContent(lesson, idea) {
+    const own = patterns.filter((pattern) => lesson.patternIds.includes(pattern.id));
+    const steps = lesson.stepIds
+      .map((stepId) => graph.step(idea.themeId, idea.ideaId, stepId))
+      .filter(Boolean);
+    const provenance = steps
+      .map(
+        (step) =>
+          `<button type="button" class="verdict-source" data-action="open-step" data-value="${escapeHtml(
+            `${idea.themeId}/${idea.ideaId}/${step.stepId}`
+          )}">步骤 ${escapeHtml(String(step.index).padStart(2, "0"))}</button>`
+      )
+      .join('<i aria-hidden="true">·</i>');
+    const patternLine = own.map((pattern) => escapeHtml(pattern.name)).join(" · ");
+    const flags = [
+      lesson.status !== "confirmed" ? "待确认" : "",
+      inferenceInConclusion(lesson.text) ? "含推想" : "",
+    ].filter(Boolean);
+    return {
+      title: "",
+      kicker: "",
+      body:
+        `<article class="verdict">` +
+        `<p class="verdict-mark">太史公曰</p>` +
+        `<p class="verdict-text">${escapeHtml(lesson.text)}</p>` +
+        `<p class="verdict-line">${provenance}${patternLine ? `<i aria-hidden="true">·</i><span>${patternLine}</span>` : ""}</p>` +
+        (flags.length ? `<p class="verdict-flag">${flags.map((flag) => `<span>${flag}</span>`).join("")}</p>` : "") +
+        `</article>`,
+      actions: "",
+    };
+  }
+
+  /** 主星的卡：模式名、一句「或曰」的说明、属于它的经验。 */
+  function patternContent(pattern) {
+    const members = pattern.lessonIds
+      .map((id) => lessons.find((lesson) => lesson.id === id))
+      .filter(Boolean);
+    return {
+      title: "",
+      kicker: "",
+      body:
+        `<article class="verdict verdict--pattern">` +
+        `<p class="verdict-mark">或曰</p>` +
+        `<p class="verdict-text">${escapeHtml(pattern.name)}</p>` +
+        `<p class="verdict-note">${escapeHtml(pattern.description)}</p>` +
+        `<ul class="verdict-members">${members
+          .map(
+            (lesson) =>
+              `<li><button type="button" class="verdict-member" data-star="${escapeHtml(
+                lesson.id
+              )}">${escapeHtml(lesson.text)}</button></li>`
+          )
+          .join("")}</ul>` +
+        `</article>`,
+      actions: "",
+    };
+  }
 
   function inspectorContent(node) {
     if (node.type === "core") {
@@ -583,6 +716,12 @@ export function startApp() {
 
   el.motion.addEventListener("click", () => applyMotion(!state.motion));
 
+  // 模式卡里点一条经验，换成那条经验的断语卡。
+  el.popover.addEventListener("click", (event) => {
+    const member = event.target.closest("[data-star]");
+    if (member) openLesson(member.dataset.star);
+  });
+
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       if (popover.isOpen) return popover.close();
@@ -635,6 +774,7 @@ export function startApp() {
     last = now;
     if (state.motion) background.frame(dt, camera.current, true);
     scene.frame(dt);
+    stars.frame();
     syncPopoverAnchor();
     requestAnimationFrame(tick);
   }
@@ -643,6 +783,14 @@ export function startApp() {
   function syncPopoverAnchor() {
     if (!popover.isOpen || !state.popover) {
       scene.setConnector(null);
+      return;
+    }
+    // 断语卡和模式卡挂在星点上，不需要连回链条节点的那条虚线。
+    const starId = state.popover.lessonId || state.popover.patternId || null;
+    if (starId) {
+      scene.setConnector(null);
+      const anchor = stars.anchorOf(starId);
+      if (anchor) popover.reposition(anchor);
       return;
     }
     const anchor = anchorOf(state.popover.nodeId);
@@ -686,6 +834,17 @@ function meta(parts) {
 function paragraph(text, className = "popover-text") {
   if (!text) return "";
   return `<p class="${className}">${escapeHtml(text)}</p>`;
+}
+
+/**
+ * 核心结论本身是不是推想。
+ * lessons.js 只有一个 hasInference，标的是整条经验里有没有推想成分，40 条全是真，
+ * 分不出「结论是推想」和「只是某处带了推想」。这里只认原文里把推想说破的收尾：
+ * 写明原文没说、原文没写，或明确先不当真。其余一律不标。
+ * @param {string} text
+ */
+function inferenceInConclusion(text) {
+  return /原文没说|原文没写|先只当/.test(text);
 }
 
 function originLabel(origin) {

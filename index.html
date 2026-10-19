@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700&family=DM+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700&family=DM+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500&family=Noto+Serif+SC:wght@500;600&display=swap"
     rel="stylesheet"
   />
   <link rel="stylesheet" href="./src/styles.css" />
@@ -34,6 +34,7 @@
     </header>
 
     <main class="stage" id="stage" aria-label="思考图谱画布">
+      <div class="stars" id="stars" role="group" aria-label="天秤座：行为模式与可复用经验"></div>
       <svg class="edges" id="edges" aria-hidden="true">
         <defs>
           <marker id="arrow-recorded" markerWidth="7" markerHeight="7" refX="5.6" refY="3" orient="auto">
@@ -71,6 +72,7 @@
         <span class="legend-item"><i class="legend-line legend-line--inferred"></i>整理的关联 · 待确认</span>
         <span class="legend-item"><i class="legend-line legend-line--source"></i>来源引用</span>
         <span class="legend-item"><i class="legend-dot legend-dot--warm"></i>阶段理解</span>
+        <span class="legend-item"><i class="legend-star" aria-hidden="true"></i>可复用经验</span>
       </div>
       <div class="view-controls">
         <button type="button" class="chip chip--icon" id="zoom-out" aria-label="缩小">−</button>
@@ -92,6 +94,7 @@
 
   <script src="./private-data/flomo.js"></script>
   <script src="./private-data/thoughts.js"></script>
+  <script src="./private-data/lessons.js"></script>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>

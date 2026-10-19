@@ -23,6 +23,7 @@
   --font-display: "Bricolage Grotesque", "Noto Sans SC", sans-serif;
   --font-mono: "DM Mono", ui-monospace, SFMono-Regular, monospace;
   --font-cjk: "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
+  --font-serif: "Noto Serif SC", "Songti SC", "STSong", serif;
 }
 
 * {
@@ -901,6 +902,7 @@ button {
   border-radius: 3px;
   box-shadow: 0 20px 56px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(126, 242, 176, 0.08);
   backdrop-filter: blur(12px);
+  overflow: hidden;
   opacity: 0;
   transform-origin: top left;
   transition: opacity 0.2s ease;
@@ -982,6 +984,8 @@ button {
 }
 
 .popover-body {
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 10px 12px 12px;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1298,6 +1302,11 @@ button {
   display: none;
 }
 
+.app[data-motion="off"] .star-glyph,
+.app[data-motion="off"] .constellation {
+  transition: none !important;
+}
+
 .app[data-motion="off"] .brain-spark,
 .app[data-motion="off"] .glyph-halo,
 .app[data-motion="off"] .node-art,
@@ -1391,6 +1400,317 @@ button {
   .popover-quote {
     font-size: 12px;
     line-height: 1.6;
+  }
+}
+
+/* ------------------------------------------------------- 天秤座：经验层
+   铺在链条和节点之下的背景。主星是行为模式，小星是经验，
+   线只连主星。默认压得很暗，悬停才把所在的那一片提亮。
+   只有星点本身能点，星空其余部分不挡链条。 */
+
+.stars {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.star {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  pointer-events: none;
+  --star: rgba(214, 196, 150, 0.34);
+}
+
+.star--lesson {
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.star--pattern {
+  width: 52px;
+  height: 52px;
+  margin: -26px 0 0 -26px;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.star--field {
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+}
+
+.star-glyph {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  background: var(--star);
+  box-shadow: 0 0 5px rgba(214, 196, 150, 0.16);
+  transform: translate(-50%, -50%);
+  transition: transform 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+}
+
+.star--lesson .star-glyph {
+  width: 3px;
+  height: 3px;
+}
+
+.star--pattern .star-glyph {
+  width: 5.5px;
+  height: 5.5px;
+  background: rgba(236, 220, 176, 0.72);
+  box-shadow: 0 0 8px rgba(236, 220, 176, 0.28);
+}
+
+.star--pattern[data-magnitude="2"] .star-glyph {
+  width: 4.5px;
+  height: 4.5px;
+}
+
+.star--pattern[data-magnitude="3"] .star-glyph {
+  width: 3.5px;
+  height: 3.5px;
+}
+
+.star--field .star-glyph {
+  width: 2px;
+  height: 2px;
+  background: rgba(214, 196, 150, 0.22);
+  box-shadow: none;
+}
+
+.star--field[data-magnitude="1"] .star-glyph {
+  width: 3px;
+  height: 3px;
+  background: rgba(214, 196, 150, 0.32);
+}
+
+/* 待确认的经验更淡，没有光晕。 */
+.star[data-pending="true"] {
+  --star: rgba(205, 222, 216, 0.2);
+}
+
+.star[data-pending="true"] .star-glyph {
+  box-shadow: none;
+}
+
+.star--lesson:hover .star-glyph,
+.star--lesson:focus-visible .star-glyph,
+.star--lesson.is-hot .star-glyph,
+.star--lesson.is-open .star-glyph {
+  background: rgba(246, 232, 198, 0.92);
+  transform: translate(-50%, -50%) scale(1.8);
+  box-shadow: 0 0 7px rgba(246, 232, 198, 0.55);
+}
+
+.star--pattern:hover .star-glyph,
+.star--pattern:focus-visible .star-glyph,
+.star--pattern.is-hot .star-glyph,
+.star--pattern.is-open .star-glyph {
+  background: rgba(250, 238, 210, 0.96);
+  transform: translate(-50%, -50%) scale(1.5);
+  box-shadow: 0 0 12px rgba(246, 232, 198, 0.6);
+}
+
+.star:focus-visible {
+  outline: none;
+}
+
+.star:focus-visible .star-glyph {
+  outline: 1px solid rgba(232, 214, 166, 0.7);
+  outline-offset: 4px;
+}
+
+.constellations {
+  pointer-events: none;
+}
+
+.constellation {
+  fill: none;
+  stroke: rgba(214, 196, 150, 0.09);
+  stroke-width: 0.6;
+  transition: stroke 0.3s ease, stroke-width 0.3s ease;
+}
+
+.constellation.is-hot {
+  stroke: rgba(236, 220, 176, 0.55);
+  stroke-width: 1;
+}
+
+.legend-star {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(236, 220, 176, 0.7);
+  box-shadow: 0 0 5px rgba(236, 220, 176, 0.4);
+}
+
+/* ------------------------------------------------------- 断语卡
+   跟链条弹窗用同一张面板，但内容是论赞：衬线大字一句，
+   下面一行小字是出处和所属模式。留白比信息密度重要。
+
+   高度规则：随内容自适应，不锁死。只有当内容超过画布可用空间
+   （扣除顶栏、底栏、边距）时才在卡片内部滚动，页面本身不滚动。 */
+
+.popover:has(.verdict) {
+  width: min(420px, calc(100vw - 32px));
+  max-height: none;
+  background: rgba(7, 9, 8, 0.94);
+  border-color: rgba(214, 196, 150, 0.16);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+
+.popover:has(.verdict) .popover-handle {
+  padding: 8px 10px 0;
+  border-bottom: 0;
+}
+
+.popover:has(.verdict) .popover-title {
+  display: none;
+}
+
+.popover:has(.verdict) .popover-close {
+  border-color: rgba(214, 196, 150, 0.2);
+}
+
+.popover:has(.verdict) .popover-close svg {
+  stroke: rgba(214, 196, 150, 0.55);
+}
+
+.popover:has(.verdict) .popover-body {
+  padding: 6px 34px 30px;
+}
+
+.verdict {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.verdict-mark {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.42em;
+  color: rgba(214, 196, 150, 0.55);
+}
+
+.verdict-text {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.7;
+  letter-spacing: 0.02em;
+  text-wrap: pretty;
+  color: #f4ecdc;
+}
+
+.verdict-line {
+  margin: 2px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: rgba(214, 196, 150, 0.5);
+}
+
+.verdict-line i {
+  font-style: normal;
+  color: rgba(214, 196, 150, 0.28);
+}
+
+.verdict-source {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  color: rgba(232, 214, 166, 0.78);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(214, 196, 150, 0.28);
+  text-underline-offset: 3px;
+}
+
+.verdict-source:hover,
+.verdict-source:focus-visible {
+  color: #f4ecdc;
+  text-decoration-color: rgba(244, 236, 220, 0.6);
+  outline: none;
+}
+
+.verdict-flag {
+  margin: -6px 0 0;
+  display: flex;
+  gap: 8px;
+}
+
+.verdict-flag span {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  color: rgba(158, 234, 244, 0.72);
+}
+
+.verdict-note {
+  margin: -6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.75;
+  text-wrap: pretty;
+  color: var(--text-dim);
+}
+
+.verdict-members {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-top: 1px solid rgba(214, 196, 150, 0.12);
+}
+
+.verdict-member {
+  width: 100%;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font-family: var(--font-serif);
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: rgba(244, 236, 220, 0.82);
+  cursor: pointer;
+}
+
+.verdict-member:hover,
+.verdict-member:focus-visible {
+  color: #f4ecdc;
+  outline: none;
+}
+
+@media (max-width: 860px) {
+  .popover:has(.verdict) .popover-body {
+    padding: 4px 22px 24px;
+  }
+
+  .verdict-text {
+    font-size: 18px;
   }
 }
 
