@@ -69,8 +69,8 @@ button {
   z-index: 60;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 12px 18px;
+  gap: var(--space-5);
+  padding: var(--space-4) var(--space-6);
   font-family: var(--font-mono);
   font-size: var(--fs-small);
   letter-spacing: 0.08em;
@@ -95,7 +95,7 @@ button {
 .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   white-space: nowrap;
 }
 
@@ -124,7 +124,7 @@ button {
 .breadcrumb {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1);
   min-width: 0;
   flex: 1;
   overflow: hidden;
@@ -161,7 +161,7 @@ button {
 .top-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
   white-space: nowrap;
 }
 
@@ -181,7 +181,7 @@ button {
   border: 1px solid rgba(126, 242, 176, 0.22);
   background: rgba(10, 24, 20, 0.5);
   color: var(--text-dim);
-  padding: 5px 10px;
+  padding: 5px var(--space-3);
   font-family: var(--font-mono);
   font-size: var(--fs-meta);
   letter-spacing: 0.1em;
@@ -212,7 +212,7 @@ button {
 .legend {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-5);
   color: var(--text-faint);
   font-size: 10px;
   flex-wrap: wrap;
@@ -221,7 +221,7 @@ button {
 .legend-item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1);
 }
 
 .legend-line {
@@ -252,7 +252,7 @@ button {
 
 .view-controls {
   display: flex;
-  gap: 6px;
+  gap: var(--space-1);
 }
 
 /* ------------------------------------------------------------------- stage */
@@ -900,8 +900,8 @@ button {
 .popover-handle {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 11px 12px 8px;
+  gap: var(--space-3);
+  padding: 11px var(--space-4) var(--space-2);
   border-bottom: 1px solid var(--green-line);
   cursor: grab;
   touch-action: none;
@@ -948,9 +948,9 @@ button {
 .popover-kicker {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1);
   flex-wrap: wrap;
-  padding: 8px 12px 0;
+  padding: var(--space-2) var(--space-4) 0;
   font-family: var(--font-mono);
   font-size: var(--fs-kicker);
   letter-spacing: 0.1em;
@@ -966,7 +966,7 @@ button {
 .popover-body {
   flex: 1 1 auto;
   min-height: 0;
-  padding: 10px 12px 12px;
+  padding: var(--space-3) var(--space-4) var(--space-4);
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -990,7 +990,7 @@ button {
 }
 
 .popover-hint {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-2);
   font-size: var(--fs-small);
   line-height: 1.6;
   color: var(--text-faint);
@@ -999,11 +999,11 @@ button {
 .popover-hint--pending {
   color: rgba(158, 234, 244, 0.8);
   border-left: 1px solid rgba(116, 212, 224, 0.4);
-  padding-left: 8px;
+  padding-left: var(--space-2);
 }
 
 .popover-sub {
-  margin: 12px 0 6px;
+  margin: var(--space-4) 0 var(--space-1);
   font-family: var(--font-mono);
   font-size: var(--fs-kicker);
   font-weight: 500;
@@ -1055,7 +1055,7 @@ button {
 
 .popover-evidence {
   list-style: none;
-  margin: 0 0 10px;
+  margin: 0 0 var(--space-3);
   padding: 0;
   counter-reset: evidence;
 }
@@ -1064,7 +1064,7 @@ button {
   counter-increment: evidence;
   display: flex;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--space-3);
   padding: 5px 0 5px 20px;
   position: relative;
   border-bottom: 1px solid rgba(126, 242, 176, 0.08);
@@ -1092,8 +1092,8 @@ button {
 }
 
 .popover-quote {
-  margin: 0 0 10px;
-  padding: 8px 10px;
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border-left: 2px solid rgba(126, 242, 176, 0.5);
   background: rgba(12, 32, 26, 0.5);
   font-size: var(--fs-body);
@@ -1111,14 +1111,14 @@ button {
 
 .popover-actions {
   display: flex;
-  gap: 8px;
-  padding: 9px 12px;
+  gap: var(--space-2);
+  padding: 9px var(--space-4);
   border-top: 1px solid var(--green-line);
 }
 
 .popover-btn {
   flex: 1;
-  padding: 7px 10px;
+  padding: 7px var(--space-3);
   border: 1px solid rgba(126, 242, 176, 0.32);
   background: rgba(12, 32, 26, 0.6);
   color: var(--green);
@@ -1259,7 +1259,7 @@ button {
   position: absolute;
   right: 20px;
   bottom: 20px;
-  padding: 6px 12px;
+  padding: var(--space-1) var(--space-4);
   border: 1px solid var(--green-mid);
   background: rgba(8, 20, 18, 0.6);
   color: var(--text-dim);
@@ -1308,8 +1308,8 @@ button {
 
   .top-bar,
   .bottom-bar {
-    padding: 10px 12px;
-    gap: 10px;
+    padding: var(--space-3) var(--space-4);
+    gap: var(--space-3);
   }
 
   .brand-text {
@@ -1317,7 +1317,7 @@ button {
   }
 
   .legend {
-    gap: 10px;
+    gap: var(--space-3);
     font-size: 9px;
   }
 
@@ -1551,7 +1551,7 @@ button {
 }
 
 .popover:has(.verdict) .popover-handle {
-  padding: 8px 10px 0;
+  padding: var(--space-2) var(--space-3) 0;
   border-bottom: 0;
 }
 
@@ -1568,13 +1568,13 @@ button {
 }
 
 .popover:has(.verdict) .popover-body {
-  padding: 6px 34px 30px;
+  padding: var(--space-1) 34px 30px;
 }
 
 .verdict {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: var(--space-6);
 }
 
 .verdict-mark {
@@ -1637,7 +1637,7 @@ button {
 .verdict-flag {
   margin: -6px 0 0;
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .verdict-flag span {
@@ -1667,7 +1667,7 @@ button {
 
 .verdict-member {
   width: 100%;
-  padding: 8px 0;
+  padding: var(--space-2) 0;
   border: 0;
   background: none;
   text-align: left;
