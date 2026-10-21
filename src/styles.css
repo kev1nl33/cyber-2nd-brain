@@ -72,7 +72,7 @@ button {
   gap: 16px;
   padding: 12px 18px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   letter-spacing: 0.08em;
 }
 
@@ -167,7 +167,7 @@ button {
 
 .status-line {
   color: var(--text-faint);
-  font-size: 10.5px;
+  font-size: var(--fs-meta);
 }
 
 .sample-hint {
@@ -183,7 +183,7 @@ button {
   color: var(--text-dim);
   padding: 5px 10px;
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: var(--fs-meta);
   letter-spacing: 0.1em;
   cursor: pointer;
   transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
@@ -406,7 +406,7 @@ button {
   width: 84px;
   text-align: center;
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--fs-kicker);
   letter-spacing: 0.08em;
   color: rgba(158, 234, 244, 0.9);
   background: rgba(4, 12, 14, 0.82);
@@ -561,7 +561,7 @@ button {
 
 .node-kicker {
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--fs-kicker);
   line-height: 1.2;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -582,7 +582,7 @@ button {
 
 .node-note {
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--fs-kicker);
   color: var(--text-faint);
 }
 
@@ -590,25 +590,25 @@ button {
 
 .node[data-type="core"] .node-title {
   font-family: var(--font-display);
-  font-size: 19px;
+  font-size: var(--fs-core);
   letter-spacing: 0.3em;
   color: #e4fff0;
 }
 
 .node[data-type="theme"] .node-title {
-  font-size: 16px;
+  font-size: var(--fs-theme);
   letter-spacing: 0.1em;
   color: #e2f4ea;
 }
 
 .node[data-type="idea"] .node-title {
-  font-size: 14px;
+  font-size: var(--fs-title);
   color: #e7f6ee;
   max-width: 184px;
 }
 
 .node[data-type="step"] .node-title {
-  font-size: 12.5px;
+  font-size: var(--fs-body);
   max-width: 158px;
 }
 
@@ -627,7 +627,7 @@ button {
 }
 
 .node[data-type="conclusion"] .node-title {
-  font-size: 12.5px;
+  font-size: var(--fs-body);
   color: #f3e3c4;
   max-width: 168px;
 }
@@ -913,7 +913,7 @@ button {
 
 .popover-title {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--fs-title);
   font-weight: 500;
   line-height: 1.4;
   color: #eafff4;
@@ -952,7 +952,7 @@ button {
   flex-wrap: wrap;
   padding: 8px 12px 0;
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--fs-kicker);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: rgba(126, 242, 176, 0.68);
@@ -984,14 +984,14 @@ button {
 
 .popover-text {
   margin: 0 0 9px;
-  font-size: 12.5px;
+  font-size: var(--fs-body);
   line-height: 1.68;
   color: var(--text);
 }
 
 .popover-hint {
   margin: 0 0 8px;
-  font-size: 11px;
+  font-size: var(--fs-small);
   line-height: 1.6;
   color: var(--text-faint);
 }
@@ -1005,7 +1005,7 @@ button {
 .popover-sub {
   margin: 12px 0 6px;
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--fs-kicker);
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -1049,7 +1049,7 @@ button {
 
 .popover-link small {
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--fs-kicker);
   color: var(--text-faint);
 }
 
@@ -1075,7 +1075,7 @@ button {
   position: absolute;
   left: 0;
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--fs-kicker);
   color: rgba(126, 242, 176, 0.5);
 }
 
@@ -1096,7 +1096,7 @@ button {
   padding: 8px 10px;
   border-left: 2px solid rgba(126, 242, 176, 0.5);
   background: rgba(12, 32, 26, 0.5);
-  font-size: 12.5px;
+  font-size: var(--fs-body);
   line-height: 1.7;
   color: #e3f6ec;
 }
@@ -1123,7 +1123,7 @@ button {
   background: rgba(12, 32, 26, 0.6);
   color: var(--green);
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: var(--fs-meta);
   letter-spacing: 0.08em;
   cursor: pointer;
   transition: background 0.18s ease, border-color 0.18s ease;
@@ -1264,7 +1264,7 @@ button {
   background: rgba(8, 20, 18, 0.6);
   color: var(--text-dim);
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: var(--fs-meta);
   letter-spacing: 0.12em;
   pointer-events: auto;
   cursor: pointer;
@@ -1326,7 +1326,7 @@ button {
   }
 
   .node[data-type="core"] .node-title {
-    font-size: 16px;
+    font-size: var(--fs-theme);
     letter-spacing: 0.22em;
   }
 
@@ -1604,7 +1604,7 @@ button {
   align-items: baseline;
   gap: 7px;
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: var(--fs-meta);
   letter-spacing: 0.06em;
   color: rgba(214, 196, 150, 0.5);
 }
@@ -1642,14 +1642,14 @@ button {
 
 .verdict-flag span {
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--fs-kicker);
   letter-spacing: 0.16em;
   color: rgba(158, 234, 244, 0.72);
 }
 
 .verdict-note {
   margin: -6px 0 0;
-  font-size: 12.5px;
+  font-size: var(--fs-body);
   line-height: 1.75;
   text-wrap: pretty;
   color: var(--text-dim);
