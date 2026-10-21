@@ -45,6 +45,8 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
   let placements = new Map();
   let instant = false;
   let selection = { selectedId: null, nodeIds: new Set(), edgeIds: new Set(), focusChain: false };
+  /** 弹窗开着才流动；弹窗关闭后链的高亮保留，光点停止。 */
+  let flowing = false;
   let hoverId = null;
   let connector = null;
 
@@ -244,6 +246,8 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
       const active = edgeIds.has(id);
       const touchesHover = hoverId && (view.edge.from === hoverId || view.edge.to === hoverId);
       view.g.classList.toggle("is-active", Boolean(active));
+      view.g.classList.toggle("is-flowing", Boolean(active) && flowing);
+      if (!active || !flowing) view.g.classList.remove("is-pulsing");
       view.g.classList.toggle("is-hover", Boolean(touchesHover));
       view.g.classList.toggle("is-dim", Boolean(focusChain && !active && !touchesHover));
     }
@@ -259,6 +263,11 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
     };
     applyStates();
     pulse();
+  }
+
+  function setFlowing(value) {
+    flowing = Boolean(value);
+    applyStates();
   }
 
   function pulse() {
@@ -363,6 +372,7 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
   return {
     setLayout,
     setSelection,
+    setFlowing,
     setConnector,
     frame,
     setInstant(value) {
