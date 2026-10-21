@@ -4,3 +4,4 @@ preview*.jpg
 preview*.png
 exports/
 .claude-verify/
+.voiden-ref/
