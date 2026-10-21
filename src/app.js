@@ -81,6 +81,7 @@ export function startApp() {
   });
 
   let layout = null;
+  let pendingActivation = null;
 
   applyMotion(state.motion, { silent: true });
   measureInsets();
@@ -97,7 +98,7 @@ export function startApp() {
 
   // ---------------------------------------------------------------- rendering
 
-  function render({ refit = false, instantCamera = false } = {}) {
+  function render({ refit = false, instantCamera = false, collapse = false } = {}) {
     const rect = el.stage.getBoundingClientRect();
     camera.setArea({
       width: rect.width,
@@ -121,7 +122,7 @@ export function startApp() {
       { width: rect.width, height: rect.height }
     );
 
-    scene.setLayout(layout, graph.edges);
+    scene.setLayout(layout, graph.edges, { collapse });
     // Only level changes, reset and resize refit: selecting a node or
     // expanding a source branch must leave the camera exactly where it is.
     if (refit) {
@@ -220,6 +221,11 @@ export function startApp() {
   // -------------------------------------------------------------- interaction
 
   function activateNode(nodeId, element) {
+    if (scene.isCollapsing()) {
+      pendingActivation = { nodeId, element };
+      return;
+    }
+    pendingActivation = null;
     const node = graph.nodes.get(nodeId);
     if (!node) return;
     const route = state.route;
@@ -381,6 +387,7 @@ export function startApp() {
   }
 
   function applyRoute(next, { force = false } = {}) {
+    pendingActivation = null;
     const previous = state.route;
     const structuralChange =
       previous.themeId !== next.themeId ||
@@ -414,7 +421,7 @@ export function startApp() {
       popover.close();
     }
 
-    render({ refit: structuralChange || force });
+    render({ refit: structuralChange || force, collapse: structuralChange });
 
     if (state.popover) {
       const node = state.popover.nodeId ? graph.nodes.get(state.popover.nodeId) : null;
@@ -774,6 +781,11 @@ export function startApp() {
     last = now;
     if (state.motion) background.frame(dt, camera.current, true);
     scene.frame(dt);
+    if (pendingActivation && !scene.isCollapsing()) {
+      const { nodeId, element } = pendingActivation;
+      pendingActivation = null;
+      activateNode(nodeId, element?.isConnected ? element : scene.nodeElement(nodeId));
+    }
     stars.frame();
     syncPopoverAnchor();
     requestAnimationFrame(tick);
