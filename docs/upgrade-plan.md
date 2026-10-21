@@ -48,7 +48,7 @@
 - 动效开关是顶栏的 `#motion-toggle`，由 `applyMotion()` 写入 `app[data-motion]`。首次加载时读 `matchMedia("(prefers-reduced-motion: reduce)")`，为真则默认关闭。`styles.css` 里 `.app[data-motion="off"]` 与 `@media (prefers-reduced-motion: reduce)` 两处都关掉动画。
 - 切换层级走哈希：`navigate()` 写 `location.hash`，`applyRoute()` 重算布局并调 `scene.setLayout()`。新节点从父节点位置生出，离开的节点加 `.is-exiting` 后 280 毫秒移除。位移由 `scene.js` 的 `frame()` 以时间常数 `EASE_TAU = 0.17` 缓动。
 - 数据结构在 `src/graph.js`：`theme → idea → nodes → refs`，转成带稳定 id 的节点与边。本计划不动这个文件。
-- 参考代码在 `.voiden-ref/`，只读不改。它目前只被本机的 `.git/info/exclude` 排除，没有写进 `.gitignore`，也不在仓库里。其中 `blackhole-port.js` 是已能跑的 WebGL 移植，每像素每帧最多 170 步光线追踪，并把分辨率限制在约 150 万设备像素。本计划的前两期不复制它的代码，原因是技术栈不兼容，不是授权。
+- 参考代码在 `.voiden-ref/`，只读不改。它已由第一期提交 `675eacc` 写进 `.gitignore`，不在仓库里。其中 `blackhole-port.js` 是已能跑的 WebGL 移植，每像素每帧最多 170 步光线追踪，并把分辨率限制在约 150 万设备像素。本计划的前两期不复制它的代码，原因是技术栈不兼容，不是授权。
 
 ---
 
@@ -90,7 +90,7 @@
 - [ ] **登录后访问正常。** 登录后打开页面，颗粒、收拢展开、光环都在，浏览器控制台没有 404。特别检查新增的那两个文件：忘记上传时，页面会白屏或缺一块，而不是报错。
 - [ ] **未登录仍被门卫拦截。** 退出登录后，直接访问页面跳到登录页，直接访问 `src/tokens.css`、`src/glow.js` 返回 401，不返回文件内容。新文件不能成为绕过登录的入口。
 - [ ] **上线后强刷缓存。** 门卫对私有内容返回 `Cache-Control: private, no-store`，浏览器不应该缓存它。但为防万一，上线后用强刷确认一次：桌面上按住 Shift 再点刷新，手机上关掉页面重新打开。看到的应该是刚上传的版本，而不是上一期的。
-- [ ] **`.voiden-ref/` 不进仓库，也不进 R2。** 它现在只被本机的 `.git/info/exclude` 排除，没有写进 `.gitignore`，这条排除不会随仓库同步，换一台机器就失效。上传前先把 `.voiden-ref/` 加进 `.gitignore`，再确认上传的文件清单里没有它。桶里不应该出现 `.voiden-ref/` 下的任何键：那些是只读的参考代码，不是页面的一部分。
+- [ ] **`.voiden-ref/` 不进仓库，也不进 R2。** 它已由第一期提交 `675eacc` 写进 `.gitignore`（已完成）；上传前仍要确认上传的文件清单里没有它。桶里不应该出现 `.voiden-ref/` 下的任何键：那些是只读的参考代码，不是页面的一部分。
 
 ---
 
