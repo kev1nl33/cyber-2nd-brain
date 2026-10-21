@@ -698,6 +698,11 @@ button {
   opacity: 0;
 }
 
+.node.is-held .node-art,
+.node.is-held .node-label {
+  opacity: 0;
+}
+
 .node.is-exiting {
   --brain: 0;
 }
@@ -1287,6 +1292,7 @@ button {
   transition: none !important;
 }
 
+.app[data-motion="off"] .node,
 .app[data-motion="off"] .brain-spark,
 .app[data-motion="off"] .glyph-halo,
 .app[data-motion="off"] .node-art,
