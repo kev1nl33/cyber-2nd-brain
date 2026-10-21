@@ -1,30 +1,10 @@
+@import url("./tokens.css");
+
 /* ==========================================================================
    Cyber 第二大脑 — 神经网络视图
    Dark neural space: hairline vectors, restrained glow, one fixed canvas.
    Brightness and line type carry meaning; fills are kept to a minimum.
    ========================================================================== */
-
-:root {
-  --void: #04080a;
-  --void-2: #061210;
-  --green: #7ef2b0;
-  --green-soft: rgba(126, 242, 176, 0.52);
-  --green-faint: rgba(126, 242, 176, 0.16);
-  --green-deep: #14392c;
-  --cool: #74d4e0;
-  --warm: #e8c37a;
-  --text: #cfd9d4;
-  --text-dim: rgba(207, 217, 212, 0.56);
-  --text-faint: rgba(207, 217, 212, 0.34);
-  --panel: rgba(5, 14, 13, 0.92);
-  --inset-top: 56px;
-  --inset-bottom: 54px;
-
-  --font-display: "Bricolage Grotesque", "Noto Sans SC", sans-serif;
-  --font-mono: "DM Mono", ui-monospace, SFMono-Regular, monospace;
-  --font-cjk: "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
-  --font-serif: "Noto Serif SC", "Songti SC", "STSong", serif;
-}
 
 * {
   box-sizing: border-box;

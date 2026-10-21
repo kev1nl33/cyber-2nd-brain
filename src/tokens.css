@@ -1,0 +1,45 @@
+:root {
+  /* 颜色。绿色保持 #7ef2b0，只把已有的深浅档位命名。 */
+  --void: #04080a;
+  --green: #7ef2b0;
+  --green-soft: rgba(126, 242, 176, 0.52);
+  --green-mid: rgba(126, 242, 176, 0.3);
+  --green-faint: rgba(126, 242, 176, 0.16);
+  --green-line: rgba(126, 242, 176, 0.12);
+  --cool: #74d4e0;
+  --cool-soft: rgba(116, 212, 224, 0.58);
+  --warm: #e8c37a;
+  --warm-soft: rgba(232, 195, 122, 0.52);
+  --text: #cfd9d4;
+  --text-dim: rgba(207, 217, 212, 0.56);
+  --text-faint: rgba(207, 217, 212, 0.34);
+  --panel: rgba(5, 14, 13, 0.92);
+
+  /* 字号。取自现有使用的几个档位。 */
+  --fs-kicker: 9.5px;
+  --fs-meta: 10.5px;
+  --fs-small: 11px;
+  --fs-body: 12.5px;
+  --fs-title: 14px;
+  --fs-theme: 16px;
+  --fs-core: 19px;
+
+  /* 间距。取自现有的 6 / 8 / 10 / 12 / 16 / 18。 */
+  --space-1: 6px;
+  --space-2: 8px;
+  --space-3: 10px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 18px;
+
+  /* 字体不变。 */
+  --font-display: "Bricolage Grotesque", "Noto Sans SC", sans-serif;
+  --font-mono: "DM Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-cjk: "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
+  --font-serif: "Noto Serif SC", "Songti SC", "STSong", serif;
+
+  /* 布局插值。初值仅在脚本测量顶栏、底栏之前生效，
+     之后由 app.js 的 measureInsets() 按实际高度覆盖。 */
+  --inset-top: 56px;
+  --inset-bottom: 54px;
+}
