@@ -20,7 +20,7 @@ export function createRain(ctx) {
     height = nextHeight;
     readGreen();
     const mobile = width <= MOBILE_WIDTH;
-    const count = mobile ? 3 : 8;
+    const count = mobile ? 4 : 8;
     meteors = Array.from({ length: count }, () => {
       const m = spawn({});
       m.x = rng() * width;
@@ -45,7 +45,7 @@ export function createRain(ctx) {
         m.x += m.vx * dt;
         m.y += m.vy * dt;
         if (m.y - m.len * m.dy > height || m.x - m.len * m.dx > width + 40) {
-          m.delay = range(rng, 0.8, 4.5);
+          m.delay = width <= MOBILE_WIDTH ? range(rng, 0.4, 2.5) : range(rng, 0.8, 4.5);
           continue;
         }
       }
