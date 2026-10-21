@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="160" viewBox="0 0 1280 160" role="img" aria-labelledby="title desc">
+  <title id="title">赛博第二大脑 · 落款</title>
+  <desc id="desc">每一次回望，都为下一次判断添一点星光。</desc>
+  <defs>
+    <linearGradient id="night" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#090e16"/>
+      <stop offset="0.5" stop-color="#14222f"/>
+      <stop offset="1" stop-color="#090e16"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="160" rx="4" fill="url(#night)"/>
+  <g fill="#cbdce5" opacity="0.3">
+    <circle cx="74" cy="49" r="0.8"/><circle cx="158" cy="117" r="1"/>
+    <circle cx="293" cy="32" r="0.7"/><circle cx="392" cy="130" r="0.8"/>
+    <circle cx="527" cy="26" r="0.7"/><circle cx="756" cy="133" r="0.8"/>
+    <circle cx="865" cy="35" r="0.9"/><circle cx="1008" cy="123" r="0.7"/>
+    <circle cx="1146" cy="39" r="0.8"/><circle cx="1211" cy="105" r="1"/>
+  </g>
+  <g fill="none" stroke="#91acb9" stroke-width="0.6" opacity="0.4">
+    <path d="M94 80 H302 M978 80 H1186"/>
+    <path d="M626 34 L640 24 L654 34 L626 34 M626 34 L622 42 M654 34 L658 42"/>
+  </g>
+  <g fill="#cfdfdf">
+    <circle cx="640" cy="24" r="1.5"/><circle cx="626" cy="34" r="1.2"/>
+    <circle cx="654" cy="34" r="1.2"/>
+  </g>
+  <g font-family="'Noto Serif SC','Songti SC',Georgia,serif" text-anchor="middle">
+    <text x="640" y="86" fill="#b8c5cc" font-size="18" letter-spacing="2">每一次回望，都为下一次判断添一点星光。</text>
+    <text x="640" y="119" fill="#7d95a4" font-size="10" letter-spacing="4">CYBER 2ND BRAIN</text>
+  </g>
+</svg>

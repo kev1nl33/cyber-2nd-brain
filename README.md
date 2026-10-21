@@ -1,0 +1,124 @@
+<p align="center"><img src="assets/readme/cover.svg" width="100%" alt="赛博第二大脑 · Cyber 2nd Brain：让知识连成脉络，让经验照亮判断"></p>
+
+<p align="center">
+  <a href="#简介">简介</a> · <a href="#知识脉络">知识脉络</a> · <a href="#界面">界面</a> · <a href="#本地使用">本地使用</a> · <a href="#数据边界">数据边界</a>
+</p>
+
+## 简介
+
+**赛博第二大脑（Cyber 2nd Brain）**是一个个人知识可视化原型。投资、创作、开发、阅读、个人成长，五个主题汇入一张可逐层展开的画布，从问题走进思考步骤，再沿来源回看依据。
+
+画布中的另一条线索是经验星空：天秤座的主星对应行为模式，小星对应可复用经验。点击星点，打开“太史公曰”式的结论卡片，再循着出处回到具体的思考步骤。
+
+让保存过的知识重新参与理解与判断，是这个项目的方向。当前页面用于浏览已整理的数据；产品目标与后续设想见 [PRD.md](PRD.md)，当前界面约定见 [current.md](current.md)。
+
+## 知识脉络
+
+**主题 → 问题 → 步骤链 → 来源**，在画布上就地展开；经验星空提供从经验回到思考过程的另一条入口。
+
+<table>
+  <thead>
+    <tr><th>入口 / 层级</th><th>可以看到什么</th><th>实现依据</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>五个主题</td><td>投资、创作、开发、阅读、个人成长。点击主题，展开该主题下的问题。</td><td><a href="src/sample-data.js">sample-data.js</a> · <a href="src/app.js">app.js</a></td></tr>
+    <tr><td>问题</td><td>围绕具体问题组织思考。点击展开步骤主线，再次点击可查看摘要、状态与步骤数量。</td><td><a href="src/graph.js">graph.js</a> · <a href="src/app.js">app.js</a></td></tr>
+    <tr><td>步骤链</td><td>按数据中的顺序串联思考步骤。点击步骤，高亮到该步的路径，查看说明、日期与来源入口；有摘要时，链末呈现阶段理解。</td><td><a href="src/graph.js">graph.js</a> · <a href="src/layout.js">layout.js</a> · <a href="src/app.js">app.js</a></td></tr>
+    <tr><td>来源</td><td>在步骤旁展开来源节点，或从浮框进入原文，再返回步骤说明。缺失的来源会明确提示。</td><td><a href="src/graph.js">graph.js</a> · <a href="src/app.js">app.js</a> · <a href="src/popover.js">popover.js</a></td></tr>
+    <tr><td>经验星空</td><td>主星呈现行为模式，小星呈现经验卡片；有匹配出处时，可从经验进入关联步骤。需要经验数据，缺少时不显示星空。</td><td><a href="src/stars.js">stars.js</a> · <a href="src/app.js">app.js</a></td></tr>
+  </tbody>
+</table>
+
+画布支持缩放、平移与复位，浮框可拖动；主题、问题与步骤的浏览位置可通过地址栏链接定位。
+
+## 界面
+
+> 截图均使用示例数据，不含真实笔记。
+
+### 01 · 五个主题，一张画布
+
+从主题进入问题，沿节点逐层展开。
+
+<p align="center"><img src="assets/readme/overview.png" width="100%" alt="总览截图：使用示例数据展示五主题知识画布"></p>
+
+### 02 · 沿着思考，回看来源
+
+步骤链保留思考脉络，来源入口让每一步都有据可查。
+
+<p align="center"><img src="assets/readme/chain.png" width="100%" alt="步骤链截图：使用示例数据展示问题、步骤与来源浮框"></p>
+
+## 本地使用
+
+<details>
+<summary><strong>本地运行</strong></summary>
+
+需要 Python 3。在项目根目录启动静态文件服务：
+
+```bash
+python3 -m http.server 8765 --bind 127.0.0.1
+```
+
+打开 [本地预览](http://127.0.0.1:8765/index.html)。
+
+缺少本地知识数据时，知识链自动使用 `src/sample-data.js` 中的示例数据。示例包含五个主题，部分问题带有步骤；缺少经验数据时，经验星空不显示，其余页面仍可使用。
+
+</details>
+
+<details>
+<summary><strong>检查脚本</strong></summary>
+
+需要 Node.js。在项目根目录运行：
+
+```bash
+node scripts/check.mjs
+node scripts/check-lessons.mjs
+```
+
+- `check.mjs`：检查路由、图谱连接、来源引用和布局；会先尝试读取本地私有数据，不可用时使用示例数据。
+- `check-lessons.mjs`：检查经验与问题、步骤、模式之间的引用一致性，依赖本地私有数据。
+
+**两个脚本都会尝试读取 `private-data/`，仅在允许访问本地真实笔记时运行。**
+
+</details>
+
+<details>
+<summary><strong>目录结构</strong></summary>
+
+`assets/readme/` 仅存放 README 引用的封面、落款与示例截图，文件使用小写英文命名；更换素材时同步更新引用，并移除不再使用的文件。
+
+```text
+.
+├── index.html               # 页面入口
+├── assets/readme/           # README 视觉素材
+│   ├── cover.svg            # 夜空与天秤座封面
+│   ├── footer.svg           # 同风格落款
+│   ├── overview.png         # 总览示例截图
+│   └── chain.png            # 步骤链示例截图
+├── src/                     # 页面逻辑与样式
+│   ├── main.js              # 启动入口
+│   ├── app.js               # 交互与状态管理
+│   ├── graph.js             # 知识图谱数据转换
+│   ├── layout.js            # 节点布局
+│   ├── scene.js             # 画布节点与连线
+│   ├── stars.js             # 天秤座经验星空
+│   ├── popover.js           # 浮框与卡片
+│   ├── sample-data.js       # 示例数据
+│   └── styles.css           # 页面样式
+├── scripts/                 # 检查脚本
+│   ├── check.mjs
+│   └── check-lessons.mjs
+├── PRD.md                   # 产品需求与方向
+├── current.md               # 当前界面与交互约定
+├── visual-polish.md         # 视觉调整文档
+└── .gitignore               # 本地数据等文件的忽略规则
+```
+
+</details>
+
+## 数据边界
+
+**仓库只放示例数据。** 真实笔记保存在本地 `private-data/`，由 `.gitignore` 排除，不入库。README 与展示素材仅使用示例内容，不包含真实笔记、密码、密钥或存储配置。
+
+---
+
+<p align="center"><img src="assets/readme/footer.svg" width="100%" alt="每一次回望，都为下一次判断添一点星光。"></p>
