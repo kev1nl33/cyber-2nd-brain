@@ -3,3 +3,4 @@ private-data/
 preview*.jpg
 preview*.png
 exports/
+.claude-verify/
