@@ -3,10 +3,13 @@
  * Everything here stays dimmer than the graph, and it parallaxes slightly with
  * the camera so the scene feels like it sits inside a space.
  */
+import { createGlow } from "./glow.js";
 import { makeRng, range } from "./random.js";
 
 export function createBackground({ canvas }) {
   const ctx = canvas.getContext("2d");
+  if (!ctx) return { resize() {}, frame() {}, setMode() {} };
+  const glow = createGlow(ctx);
   const rng = makeRng("background");
   let width = 0;
   let height = 0;
@@ -24,6 +27,7 @@ export function createBackground({ canvas }) {
     canvas.height = Math.round(height * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     seed();
+    glow.resize(width, height, dpr);
   }
 
   function seed() {
@@ -113,6 +117,7 @@ export function createBackground({ canvas }) {
       ctx.fillText(d.ch, d.x, d.y);
     }
     ctx.restore();
+    glow.frame(dt, motion);
   }
 
   function drawGrid(camera) {
