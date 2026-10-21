@@ -51,7 +51,7 @@ export function brainArt({ seed, detail = "theme" }) {
     const d = toPath(curve);
     fibres.push(path(d, "brain-fibre"));
     if (pulseEvery && i % pulseEvery === 0) {
-      fibres.push(path(d, "brain-pulse", `pathLength="100" style="animation-delay:${(rng() * 7).toFixed(2)}s"`));
+      fibres.push(path(d, "brain-pulse", `pathLength="100" style="animation-delay:${(rng() * 3.5).toFixed(2)}s"`));
     }
   }
 
@@ -64,7 +64,7 @@ export function brainArt({ seed, detail = "theme" }) {
     const side = rng() < 0.5 ? -1 : 1;
     const v = range(rng, -0.8, 0.84);
     const p = { x: profile.cx(v) + side * profile.w(v, side) * range(rng, 0.78, 0.97), y: profile.y(v) };
-    dots.push(circle(p, range(rng, 1, 1.8), "brain-spark", `style="animation-delay:${(rng() * 5).toFixed(2)}s"`));
+    dots.push(circle(p, range(rng, 1, 1.8), "brain-spark", `style="animation-delay:${(rng() * 2.5).toFixed(2)}s"`));
   }
 
   const layers = [];

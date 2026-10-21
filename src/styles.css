@@ -744,7 +744,7 @@ button {
   stroke: rgba(205, 255, 228, 0.85);
   stroke-width: 1.1px;
   stroke-dasharray: 4 96;
-  animation: brainFlow 8s linear infinite;
+  animation: brainFlow 4s linear infinite;
 }
 
 .brain-junction {
@@ -755,7 +755,7 @@ button {
 .brain-spark {
   fill: #dcffec;
   stroke: none;
-  animation: spark 5s ease-in-out infinite;
+  animation: spark 2.5s ease-in-out infinite;
 }
 
 .brain-layer--far {
