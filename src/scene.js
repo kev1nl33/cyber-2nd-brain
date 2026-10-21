@@ -44,6 +44,7 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
   let edges = [];
   let placements = new Map();
   let instant = false;
+  let collapseUntil = 0;
   let selection = { selectedId: null, nodeIds: new Set(), edgeIds: new Set(), focusChain: false };
   let hoverId = null;
   let connector = null;
@@ -142,50 +143,86 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
    * @param {{ placements: Map<string, any> }} layout
    * @param {any[]} graphEdges
    */
-  function setLayout(layout, graphEdges) {
+  function setLayout(layout, graphEdges, { collapse = false } = {}) {
+    const previous = placements;
+    const collapsing = collapse && !instant;
+    const oldCenter = centerOf(previous);
+    const newCenter = centerOf(layout.placements);
+    if (collapsing) collapseUntil = performance.now() + 340;
     placements = layout.placements;
     edges = graphEdges.filter((e) => placements.has(e.from) && placements.has(e.to));
 
     for (const [id, placement] of placements) {
       let view = rendered.get(id);
+      const entering = !previous.has(id);
       if (!view) {
         const parent = placement.parentId ? rendered.get(placement.parentId) : null;
-        const origin = parent ? { x: parent.cur.x, y: parent.cur.y } : { x: placement.x, y: placement.y };
+        const origin = collapsing ? newCenter : parent ? parent.cur : placement;
         view = {
           id,
           el: createNode(placement),
           placement,
-          cur: { x: origin.x, y: origin.y, size: parent ? placement.size * 0.4 : placement.size },
+          cur: { x: origin.x, y: origin.y, size: collapsing || parent ? placement.size * 0.4 : placement.size },
           exiting: false,
+          heldUntil: 0,
         };
-        view.el.classList.add("is-entering");
         rendered.set(id, view);
-        requestAnimationFrame(() => view.el.classList.remove("is-entering"));
-      } else if (view.exiting) {
+        if (!collapsing && !instant) {
+          view.el.classList.add("is-entering");
+          requestAnimationFrame(() => view.el.classList.remove("is-entering"));
+        }
+      }
+      if (view.exiting) {
         view.exiting = false;
         clearTimeout(view.removeTimer);
         view.el.classList.remove("is-exiting");
       }
+      if (collapsing || instant) {
+        view.heldUntil = collapsing && entering ? collapseUntil : 0;
+        view.el.classList.remove("is-entering");
+        view.el.classList.toggle("is-held", Boolean(view.heldUntil));
+        if (view.heldUntil) {
+          view.cur = { x: newCenter.x, y: newCenter.y, size: placement.size * 0.4 };
+        }
+      }
       view.placement = placement;
+      if (instant) view.cur = { x: placement.x, y: placement.y, size: placement.size };
     }
 
     for (const [id, view] of rendered) {
-      if (placements.has(id) || view.exiting) continue;
+      if (placements.has(id)) continue;
+      if (instant) {
+        removeNode(id, view);
+        continue;
+      }
+      if (view.exiting) continue;
       view.exiting = true;
+      view.heldUntil = 0;
+      view.el.classList.remove("is-held", "is-entering");
       view.el.classList.add("is-exiting");
       const parent = view.placement.parentId ? rendered.get(view.placement.parentId) : null;
-      if (parent) view.placement = { ...view.placement, x: parent.placement.x, y: parent.placement.y };
-      view.removeTimer = setTimeout(
-        () => {
-          view.el.remove();
-          rendered.delete(id);
-        },
-        instant ? 0 : 280
-      );
+      if (collapsing) view.placement = { ...view.placement, x: oldCenter.x, y: oldCenter.y };
+      else if (parent) view.placement = { ...view.placement, x: parent.placement.x, y: parent.placement.y };
+      view.removeTimer = setTimeout(() => removeNode(id, view), collapsing ? 420 : 280);
     }
 
     syncEdges();
     applyStates();
+  }
+
+  function centerOf(layer) {
+    const values = [...layer.values()];
+    return values.find((p) => p.role === "theme-active") || values.find((p) => p.role === "core") || { x: 0, y: 0 };
+  }
+
+  function removeNode(id, view) {
+    clearTimeout(view.removeTimer);
+    view.el.remove();
+    rendered.delete(id);
+  }
+
+  function isCollapsing() {
+    return !instant && performance.now() < collapseUntil;
   }
 
   function syncEdges() {
@@ -279,15 +316,24 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
   function frame(dt) {
     let busy = camera.step(dt);
     const k = instant ? 1 : 1 - Math.exp(-dt / EASE_TAU);
+    const now = performance.now();
 
     for (const [, view] of rendered) {
       const p = view.placement;
+      if (view.heldUntil && now >= view.heldUntil) {
+        view.heldUntil = 0;
+        view.el.classList.remove("is-held");
+      }
       const targetSize = view.exiting ? p.size * 0.5 : p.size;
-      view.cur.x += (p.x - view.cur.x) * k;
-      view.cur.y += (p.y - view.cur.y) * k;
-      view.cur.size += (targetSize - view.cur.size) * k;
-      if (Math.abs(p.x - view.cur.x) > 0.2 || Math.abs(p.y - view.cur.y) > 0.2) busy = true;
-      if (Math.abs(targetSize - view.cur.size) > 0.2) busy = true;
+      if (view.heldUntil) {
+        busy = true;
+      } else {
+        view.cur.x += (p.x - view.cur.x) * k;
+        view.cur.y += (p.y - view.cur.y) * k;
+        view.cur.size += (targetSize - view.cur.size) * k;
+        if (Math.abs(p.x - view.cur.x) > 0.2 || Math.abs(p.y - view.cur.y) > 0.2) busy = true;
+        if (Math.abs(targetSize - view.cur.size) > 0.2) busy = true;
+      }
 
       const screen = camera.toScreen(view.cur);
       const px = artPx(p, view.cur.size);
@@ -362,11 +408,25 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
 
   return {
     setLayout,
+    isCollapsing,
     setSelection,
     setConnector,
     frame,
     setInstant(value) {
       instant = Boolean(value);
+      if (!instant) return;
+      collapseUntil = 0;
+      for (const [id, view] of rendered) {
+        if (view.exiting) {
+          removeNode(id, view);
+          continue;
+        }
+        view.heldUntil = 0;
+        view.el.classList.remove("is-held", "is-entering");
+        const p = view.placement;
+        view.cur = { x: p.x, y: p.y, size: p.size };
+      }
+      frame(0);
     },
     nodeView: (id) => rendered.get(id),
     nodeElement: (id) => rendered.get(id)?.el || null,
