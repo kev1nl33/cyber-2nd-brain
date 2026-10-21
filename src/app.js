@@ -752,6 +752,7 @@ export function startApp() {
   window.addEventListener("resize", () => {
     measureInsets();
     background.resize();
+    if (!state.motion && !document.hidden) background.frame(0, camera.current, false);
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => render({ refit: !camera.userAdjusted }), 60);
   });
@@ -761,7 +762,12 @@ export function startApp() {
     document.documentElement.style.setProperty("--inset-bottom", `${el.bottomBar.offsetHeight}px`);
   }
 
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && !state.motion) background.frame(0, camera.current, false);
+  });
+
   function applyMotion(on, { silent = false } = {}) {
+    const wasOn = state.motion;
     state.motion = on;
     el.app.dataset.motion = on ? "on" : "off";
     el.motion.setAttribute("aria-pressed", on ? "false" : "true");
@@ -770,16 +776,18 @@ export function startApp() {
     scene.setInstant(!on);
     if (!on) camera.snap();
     if (!silent) render();
+    if (wasOn && !on && !document.hidden) background.frame(0, camera.current, false);
   }
 
   // ---------------------------------------------------------------- main loop
 
   background.resize();
+  if (!state.motion && !document.hidden) background.frame(0, camera.current, false);
   let last = performance.now();
   function tick(now) {
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
-    if (state.motion) background.frame(dt, camera.current, true);
+    if (state.motion && !document.hidden) background.frame(dt, camera.current, true);
     scene.frame(dt);
     if (pendingActivation && !scene.isCollapsing()) {
       const { nodeId, element } = pendingActivation;
