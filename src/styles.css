@@ -893,7 +893,9 @@ button {
   display: flex;
   flex-direction: column;
   width: min(336px, calc(100vw - 24px));
-  max-height: min(55dvh, 520px);
+  /* 高度随内容走；上限是画布可用高度：视口减上下栏，再留上下各 10px（对应 popover.js 的 MARGIN）。
+     超过上限才由 .popover-body 内部滚动，头部和按钮不跟着滚。 */
+  max-height: calc(100dvh - var(--inset-top) - var(--inset-bottom) - 20px);
   background: linear-gradient(180deg, rgba(8, 20, 18, 0.95) 0%, rgba(4, 12, 12, 0.95) 100%);
   border: 1px solid rgba(126, 242, 176, 0.26);
   border-radius: 3px;
@@ -915,6 +917,7 @@ button {
 }
 
 .popover-handle {
+  flex: none;
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
@@ -963,6 +966,7 @@ button {
 }
 
 .popover-kicker {
+  flex: none;
   display: flex;
   align-items: center;
   gap: var(--space-1);
@@ -1127,6 +1131,7 @@ button {
 }
 
 .popover-actions {
+  flex: none;
   display: flex;
   gap: var(--space-2);
   padding: 9px var(--space-4);
@@ -1375,7 +1380,6 @@ button {
 
   .popover {
     width: min(320px, calc(100vw - 20px));
-    max-height: 50dvh;
   }
 }
 
@@ -1388,10 +1392,6 @@ button {
 @media (max-height: 620px) {
   .legend-item:nth-child(n + 3) {
     display: none;
-  }
-
-  .popover {
-    max-height: 44dvh;
   }
 
   .popover-text,
@@ -1563,7 +1563,6 @@ button {
 
 .popover:has(.verdict) {
   width: min(420px, calc(100vw - 32px));
-  max-height: none;
   background: rgba(7, 9, 8, 0.94);
   border-color: rgba(214, 196, 150, 0.16);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
