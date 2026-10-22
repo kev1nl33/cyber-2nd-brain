@@ -33,6 +33,14 @@
 
 - **浮框**：高度随内容自适应，可整体拖动。内容不多时一次显示完；超出画布可用高度时在框内滚动，头部与「在画布展开来源」等操作按钮钉在底部。
 - **悬停邻域高亮**：鼠标悬停约 120ms 后，节点与一跳邻居保持亮度，其余节点和连线淡至 0.25 透明度，200ms 过渡；点击选中优先，触屏不触发。
+- **两跳关联**：步骤浮框列出引用过同一条来源的其他问题，按共同来源条数排序，最多 5 条；当前问题不出现，点一条即可跳过去。
+- **叠读**：从步骤浮框点开来源时，原来的浮框收成窄卡压在下面，可逐张点回去或按 Esc 逐级回退，退完最后一张才关闭。
+- **每日一星**：经验星空里每天用固定种子挑出一颗经验星，缓慢发出绿色脉冲，点击照常打开经验卡片；同一天挑中的是同一颗，换一天可能不同。
+- **展开动画**：展开主题或问题时，新出现的连线与节点由小到大长出来，依次错开；关闭动效时直接到位。
+- **中心呼吸**：画布中心随最近一步思考的新旧缓慢明暗，3 天内最亮、30 天以上最暗，6 秒一个呼吸周期；关闭动效时亮度保持静止。
+- **毛玻璃浮框**：浮框、窄卡与卡片统一为磨砂玻璃底，模糊背后的画布；不支持模糊的浏览器退回不透明底色，保证文字可读。
+- **景深视差**：平移画布时星空、流星与节点按不同深度跟随（0.3 / 0.6 / 1），产生远近层次；关闭动效时背景两层固定不动。
+- **缩放分层**：缩得很远时只留主题名，拉近后依次出现问题文字和步骤文字，阈值附近有滞回避免来回闪烁；选中路径上、浮框打开处以及键盘或链接跳到的节点，文字始终保留。
 - **思考回放**：展开问题后，底部出现一条细时间条。播放时按日期每 0.8 秒点亮一步并闪亮到该步的连线，可拖动时间条跳步，Esc 或再次点击暂停；系统开启「减少动态效果」时不自动播放，仅支持拖动回看。
 
 ## 界面
@@ -93,6 +101,15 @@ node scripts/test-layout.mjs
 node scripts/test-route.mjs
 node scripts/test-random.mjs
 node scripts/test-sources-dedup.mjs
+node scripts/test-two-hop.mjs
+node scripts/test-daily-star.mjs
+node scripts/test-grow.mjs
+node scripts/test-core-breathe.mjs
+node scripts/test-anatomy.mjs
+node scripts/test-camera.mjs
+node scripts/test-glyphs.mjs
+node scripts/test-parallax.mjs
+node scripts/test-lod.mjs
 ```
 
 </details>
@@ -118,13 +135,16 @@ node scripts/test-sources-dedup.mjs
 │   ├── scene.js             # 画布节点与连线
 │   ├── stars.js             # 天秤座经验星空
 │   ├── popover.js           # 浮框与卡片
+│   ├── glow.js              # 中心呼吸亮度
+│   ├── lod.js               # 缩放分层阈值
+│   ├── parallax.js          # 景深视差
 │   ├── replay.js            # 思考回放时间条
 │   ├── sample-data.js       # 示例数据
 │   └── styles.css           # 页面样式
 ├── scripts/                 # 检查与测试脚本
 │   ├── check.mjs
 │   ├── check-lessons.mjs
-│   └── test-*.mjs           # 单元测试（graph / layout / route / random）
+│   └── test-*.mjs           # 单元测试（graph / layout / route / random / sources-dedup / two-hop / daily-star / grow / core-breathe / anatomy / camera / glyphs / parallax / lod）
 ├── PRD.md                   # 产品需求与方向
 ├── current.md               # 当前界面与交互约定
 ├── visual-polish.md         # 视觉调整文档

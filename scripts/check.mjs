@@ -147,7 +147,22 @@ for (const themeNode of graph.themes()) {
 
 // ------------------------------------------------- zero-dependency unit tests
 
-for (const file of ["test-route.mjs", "test-graph.mjs", "test-layout.mjs", "test-random.mjs", "test-sources-dedup.mjs"]) {
+for (const file of [
+  "test-route.mjs",
+  "test-graph.mjs",
+  "test-layout.mjs",
+  "test-random.mjs",
+  "test-sources-dedup.mjs",
+  "test-two-hop.mjs",
+  "test-daily-star.mjs",
+  "test-grow.mjs",
+  "test-core-breathe.mjs",
+  "test-anatomy.mjs",
+  "test-camera.mjs",
+  "test-glyphs.mjs",
+  "test-parallax.mjs",
+  "test-lod.mjs",
+]) {
   const script = fileURLToPath(new URL(file, import.meta.url));
   const run = spawnSync(process.execPath, [script], { encoding: "utf8" });
   if (run.status === 0) {
