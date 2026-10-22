@@ -299,7 +299,22 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
       focusChain: Boolean(next.focusChain),
     };
     applyStates();
-    pulse();
+    if (next.pulse !== false) pulse();
+  }
+
+  function clearFlashes() {
+    for (const [, view] of edgeViews) view.g.classList.remove("is-replay-flash");
+  }
+
+  function flashEdges(ids) {
+    clearFlashes();
+    if (instant) return;
+    for (const id of ids) {
+      const view = edgeViews.get(id);
+      if (!view) continue;
+      void view.g.getBoundingClientRect();
+      view.g.classList.add("is-replay-flash");
+    }
   }
 
   function setFlowing(value) {
@@ -419,6 +434,8 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
     setLayout,
     isCollapsing,
     setSelection,
+    flashEdges,
+    clearFlashes,
     setFlowing,
     setConnector,
     frame,
