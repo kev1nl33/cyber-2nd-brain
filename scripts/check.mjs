@@ -4,6 +4,8 @@
  * and layout sanity. Run: node scripts/check.mjs
  */
 import { backOneLevel, buildHash, parseHash } from "../src/route.js";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 let failed = 0;
 
@@ -140,6 +142,20 @@ for (const themeNode of graph.themes()) {
       (step, i) => i === 0 || graph.edges.some((e) => e.from === steps[i - 1].id && e.to === step.id)
     );
     assert(chained, `${ideaNode.label}: main line is a single chain (${steps.length} steps)`);
+  }
+}
+
+// ------------------------------------------------- zero-dependency unit tests
+
+for (const file of ["test-route.mjs", "test-graph.mjs", "test-layout.mjs", "test-random.mjs"]) {
+  const script = fileURLToPath(new URL(file, import.meta.url));
+  const run = spawnSync(process.execPath, [script], { encoding: "utf8" });
+  if (run.status === 0) {
+    console.log(`ok: ${file}`);
+  } else {
+    console.error(`FAIL: ${file} (exit ${run.status})`);
+    console.error(run.stdout + run.stderr);
+    failed++;
   }
 }
 
