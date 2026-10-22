@@ -5,7 +5,7 @@
  */
 import { createBackground } from "./background.js";
 import { createCamera } from "./camera.js";
-import { loadGraph } from "./graph.js";
+import { loadGraph, relatedIdeas } from "./graph.js";
 import { runIntro } from "./intro.js";
 import { boundsOf, computeLayout } from "./layout.js";
 import { createPopover } from "./popover.js";
@@ -603,6 +603,20 @@ export function startApp() {
 
     const sources = graph.sources(node.id);
     const expanded = state.expanded.has(node.id);
+    // 二跳关联只认共享来源。没有相关问题时整节不出现，不留空标题。
+    const related = relatedIdeas(graph, node.id);
+    const relatedSection = related.length
+      ? `<h3 class="popover-sub">相关问题</h3><ul class="popover-list">${related
+          .map(
+            (item) =>
+              `<li><button type="button" class="popover-link" data-action="open-idea" data-value="${escapeHtml(
+                `${item.themeId}/${item.ideaId}`
+              )}"><span>${escapeHtml(item.label)}</span><small>${escapeHtml(
+                `${item.themeLabel} · 共享 ${item.sharedCount} 条来源`
+              )}</small></button></li>`
+          )
+          .join("")}</ul>`
+      : "";
     const inferredNote =
       node.connection === "inferred"
         ? paragraph("与上一步之间是整理出的关联，时间先后不等于因果，关联待确认。", "popover-hint popover-hint--pending")
@@ -624,7 +638,8 @@ export function startApp() {
                   )}</small></button></li>`
               )
               .join("")}</ul>`
-          : paragraph("这一步没有引用记录。", "popover-hint")),
+          : paragraph("这一步没有引用记录。", "popover-hint")) +
+        relatedSection,
       actions: sources.length
         ? `<button type="button" class="popover-btn" data-action="${
             expanded ? "collapse-sources" : "expand-sources"

@@ -216,6 +216,82 @@ export function loadGraph() {
   return graph;
 }
 
+/**
+ * 二跳关联：和当前步骤引用过同一条来源的其他问题。
+ *
+ * 只认来源共享，不认关键词相似——同一条 refId 是记录里真实存在的依据，
+ * 两个问题引用它，说明它们落在同一份材料上。当前问题本身永远不出现，
+ * 同一问题里的其他步骤共享来源也不算出「其他问题」。
+ *
+ * 关于「同一经验」：lessons.js 里每条经验只归属一个 ideaId，证据步骤也必须
+ * 属于该问题（scripts/check-lessons.mjs 有这条断言），所以两个不同问题不可能
+ * 挂在同一条经验下。能被数据结构表达的二跳关系只有共享来源这一种，这里就只做它。
+ *
+ * 每个问题只出现一次，按共同来源条数、问题更新时间、标题排序，最多 5 条。
+ * 返回值按问题去重，形状固定，方便浮框直接渲染。
+ *
+ * @param {ReturnType<typeof loadGraph>} graph
+ * @param {string} stepId 节点 id（step:theme/idea/step），或裸步骤 id
+ * @param {number} [limit]
+ * @returns {{ themeId: string, ideaId: string, label: string, themeLabel: string, updated: string, sharedRefIds: string[], sharedCount: number }[]}
+ */
+export function relatedIdeas(graph, stepId, limit = 5) {
+  const step = findStepNode(graph, stepId);
+  if (!step || !step.refIds.length) return [];
+
+  const ownRefs = new Set(step.refIds);
+  /** @type {Map<string, { themeId: string, ideaId: string, shared: Set<string> }>} */
+  const byIdea = new Map();
+
+  for (const node of graph.nodes.values()) {
+    if (node.type !== "step") continue;
+    if (node.themeId === step.themeId && node.ideaId === step.ideaId) continue;
+    const shared = node.refIds.filter((refId) => ownRefs.has(refId));
+    if (!shared.length) continue;
+    const key = `${node.themeId}/${node.ideaId}`;
+    const entry = byIdea.get(key);
+    if (entry) {
+      for (const refId of shared) entry.shared.add(refId);
+    } else {
+      byIdea.set(key, { themeId: node.themeId, ideaId: node.ideaId, shared: new Set(shared) });
+    }
+  }
+
+  const related = [...byIdea.values()].map((entry) => {
+    const idea = graph.idea(entry.themeId, entry.ideaId);
+    return {
+      themeId: entry.themeId,
+      ideaId: entry.ideaId,
+      label: idea?.label || entry.ideaId,
+      themeLabel: graph.theme(entry.themeId)?.label || entry.themeId,
+      updated: idea?.updated || "",
+      sharedRefIds: [...entry.shared].sort(),
+      sharedCount: entry.shared.size,
+    };
+  });
+
+  related.sort(
+    (a, b) => b.sharedCount - a.sharedCount || compareText(b.updated, a.updated) || compareText(a.label, b.label)
+  );
+
+  return related.slice(0, Math.max(0, limit));
+}
+
+/** 步骤 id 可能带节点前缀，也可能只是一个 idea 内的步骤 id。 */
+function findStepNode(graph, stepId) {
+  const direct = graph.nodes.get(stepId);
+  if (direct) return direct.type === "step" ? direct : null;
+  for (const node of graph.nodes.values()) {
+    if (node.type === "step" && node.stepId === stepId) return node;
+  }
+  return null;
+}
+
+/** 与 locale 无关的字符串比较，保证排序在任何环境一致。 */
+function compareText(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 function resolveRef(refId, recordMap, sourceMap, missingRefs, stepId) {
   if (sourceMap.has(refId)) {
     const s = sourceMap.get(refId);
