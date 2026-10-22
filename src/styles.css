@@ -1520,7 +1520,7 @@ button {
 
 .app[data-motion="off"] .star.is-daily::after {
   animation: none !important;
-  opacity: 0.42;
+  opacity: 0.72;
   transform: scale(1);
 }
 
@@ -1771,12 +1771,14 @@ button {
   box-shadow: 0 0 12px rgba(246, 232, 198, 0.6);
 }
 
-/* 今日一星：当天由日期种子选出的那条经验，换成品牌绿。
-   呼吸只做在极淡的外圈光环上，3 秒一轮，星点本身不动也不闪，
-   这样它和旁边的经验星只有颜色差别，不会抢走链条的注意力。 */
+/* 今日一星：当天由日期种子选出的那条经验。
+   核心比普通经验星大一档，外面一圈柔和的品牌绿光晕，6 秒慢慢亮暗一次。
+   星点本身不位移、不闪，光晕也不会亮到盖过链条。 */
 .star.is-daily .star-glyph {
+  width: 5px;
+  height: 5px;
   background: var(--green);
-  box-shadow: 0 0 7px rgba(126, 242, 176, 0.55);
+  box-shadow: 0 0 8px rgba(126, 242, 176, 0.7);
 }
 
 .star.is-daily::after {
@@ -1784,25 +1786,31 @@ button {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 11px;
-  height: 11px;
-  margin: -5.5px 0 0 -5.5px;
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
   border-radius: 50%;
-  border: 1px solid rgba(126, 242, 176, 0.42);
-  animation: dailyBreathe 3s ease-in-out infinite;
+  background: radial-gradient(
+    circle,
+    rgba(126, 242, 176, 0.28) 0%,
+    rgba(126, 242, 176, 0.1) 46%,
+    rgba(126, 242, 176, 0) 72%
+  );
+  box-shadow: 0 0 12px rgba(126, 242, 176, 0.28);
+  animation: dailyBreathe 6s ease-in-out infinite;
   pointer-events: none;
 }
 
 @keyframes dailyBreathe {
   0%,
   100% {
-    opacity: 0.5;
-    transform: scale(0.82);
+    opacity: 0.85;
+    transform: scale(0.92);
   }
 
   50% {
-    opacity: 0.12;
-    transform: scale(1.3);
+    opacity: 0.45;
+    transform: scale(1.08);
   }
 }
 
@@ -2005,7 +2013,7 @@ button {
 
   .star.is-daily::after {
     animation: none !important;
-    opacity: 0.42;
+    opacity: 0.72;
     transform: scale(1);
   }
 
