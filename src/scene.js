@@ -612,13 +612,9 @@ let pendingGrow = null;
       const b = rendered.get(view.edge.to);
       if (!a?.screen || !b?.screen) continue;
       const d = edgePath(a, b, view.edge.kind);
-      // 路径 0.1px 取整后未变时，重复写相同的 d 字符串没有意义，按值跳过。
-      if (d.path !== view.appliedPath) {
-        view.appliedPath = d.path;
-        view.line.setAttribute("d", d.path);
-        view.flow.setAttribute("d", d.path);
-        view.reveal.setAttribute("d", d.path);
-      }
+      view.line.setAttribute("d", d.path);
+      view.flow.setAttribute("d", d.path);
+      view.reveal.setAttribute("d", d.path);
       // 遮罩以屏幕坐标覆盖整条曲线及箭头，避免默认边界裁掉浅弧。
       const pad = Math.hypot(b.screen.x - a.screen.x, b.screen.y - a.screen.y) * 0.1 + 20;
       view.mask.setAttribute("x", String(Math.min(a.screen.x, b.screen.x) - pad));
