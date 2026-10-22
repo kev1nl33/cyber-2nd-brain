@@ -11,7 +11,7 @@ import { boundsOf, computeLayout } from "./layout.js";
 import { parallaxShift } from "./parallax.js";
 import { createPopover } from "./popover.js";
 import { createRain } from "./rain.js";
-import { backOneLevel, buildHash, parseHash } from "./route.js";
+import { backOneLevel, buildHash, parseHash, divesIn } from "./route.js";
 import { createScene } from "./scene.js";
 import { createStars } from "./stars.js";
 import { createReplay } from "./replay.js";
@@ -135,7 +135,7 @@ export function startApp() {
 
   // ---------------------------------------------------------------- rendering
 
-  function render({ refit = false, instantCamera = false, collapse = false } = {}) {
+  function render({ refit = false, instantCamera = false, collapse = false, growInto = false } = {}) {
     const rect = el.stage.getBoundingClientRect();
     const { level, themeId, ideaId } = state.route;
     replay.setContext(
@@ -165,7 +165,7 @@ export function startApp() {
       { width: rect.width, height: rect.height }
     );
 
-    scene.setLayout(layout, graph.edges, { collapse, nodes: graph.nodes });
+    scene.setLayout(layout, graph.edges, { collapse, nodes: graph.nodes, growInto });
     // Only level changes, reset and resize refit: selecting a node or
     // expanding a source branch must leave the camera exactly where it is.
     if (refit) {
@@ -513,6 +513,7 @@ export function startApp() {
       previous.themeId !== next.themeId ||
       previous.ideaId !== next.ideaId ||
       (previous.level === "overview") !== (next.level === "overview");
+  const growInto = structuralChange && divesIn(previous, next);
     state.route = next;
 
     if (structuralChange) state.expanded.clear();
@@ -541,7 +542,7 @@ export function startApp() {
       popover.close();
     }
 
-    render({ refit: structuralChange || force, collapse: structuralChange });
+    render({ refit: structuralChange || force, collapse: structuralChange, growInto });
     replay.syncSelected(state.selectedId);
     // 路由本身就是一次定位：URL 或键盘跳到的那一层，目标节点的文字不能被缩放藏掉。
     scene.setLocated(locatedNodeId(route));

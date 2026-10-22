@@ -42,6 +42,7 @@ const GROW_NODE_MS = 200;
 /**
  * 展开时新进来的子节点，按布局插入顺序同层错开。
  * 连线先描 GROW_EDGE_MS，节点再隔同样的时间长出。
+ * 步骤主线的链条边（上一个新节点连过来的）也一并跟着描。
  * @param {Map<string, any>} previous
  * @param {Map<string, any>} next
  * @param {any[]} edges
@@ -57,10 +58,24 @@ export function growPlan(previous, next, edges) {
   const grown = [];
   for (const edge of edges) {
     const child = byChild.get(edge.to);
-    if (!child || edge.from !== next.get(edge.to).parentId) continue;
+    if (!child) continue;
+    // 直连父节点的边照描；步骤主线是上一个新节点连过来的链条边，跟着一起长。
+    if (edge.from !== next.get(edge.to).parentId && !byChild.has(edge.from)) continue;
     grown.push({ id: edge.id, to: edge.to, delay: child.delay });
   }
   return { nodes, edges: grown };
+}
+/**
+ * 生长动画什么时候播：展开来源当帧就播；点进主题/问题是换层导航，要等
+ * 收起/过渡动画放完、节点停稳之后再播；动效关闭（顶栏开关或系统减少
+ * 动态）时不播，新节点直接出现。
+ * @param {{ collapsing?: boolean, instant?: boolean, growInto?: boolean }} transition
+ * @returns {"immediate" | "after-settle" | "none"}
+ */
+export function growMode({ collapsing = false, instant = false, growInto = false } = {}) {
+  if (instant) return "none";
+  if (collapsing) return growInto ? "after-settle" : "none";
+  return "immediate";
 }
 
 export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onActivate, onHoverChange }) {
@@ -74,6 +89,8 @@ export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onA
   let placements = new Map();
   let instant = false;
   let collapseUntil = 0;
+/** 点进更深一层挂起的生长计划：等收起/过渡稳定后在 frame() 里触发。 */
+let pendingGrow = null;
   let selection = { selectedId: null, nodeIds: new Set(), edgeIds: new Set(), focusChain: false };
   /** 聚焦模式下要保留原亮度的当前路径；null 表示没开聚焦。 */
   let focusPath = null;
@@ -206,7 +223,7 @@ export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onA
    * @param {{ placements: Map<string, any> }} layout
    * @param {any[]} graphEdges
    */
-  function setLayout(layout, graphEdges, { collapse = false, nodes = null } = {}) {
+  function setLayout(layout, graphEdges, { collapse = false, nodes = null, growInto = false } = {}) {
     if (nodes) {
       const latest = latestStepDate(nodes);
       recencyDays = latest ? daysSince(latest) : null;
@@ -282,7 +299,9 @@ export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onA
     }
 
     syncEdges();
-    if (!collapsing && !instant) growIn(previous);
+    const mode = growMode({ collapsing, instant, growInto });
+    pendingGrow = mode === "after-settle" ? { previous } : null;
+    if (mode === "immediate") growIn(previous);
     applyStates();
   }
 
@@ -557,6 +576,11 @@ export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onA
       }
     }
 
+    if (pendingGrow && !instant && !busy && now >= collapseUntil) {
+      const settleGrow = pendingGrow;
+      pendingGrow = null;
+      growIn(settleGrow.previous);
+    }
     return busy;
   }
 
@@ -605,6 +629,7 @@ export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onA
       instant = Boolean(value);
       if (!instant) return;
       collapseUntil = 0;
+      pendingGrow = null;
       breatheElapsed = 0;
       applyCoreBreath();
       for (const [id, view] of rendered) {
