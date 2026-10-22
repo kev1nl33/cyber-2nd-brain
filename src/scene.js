@@ -42,6 +42,7 @@ const GROW_NODE_MS = 200;
 /**
  * 展开时新进来的子节点，按布局插入顺序同层错开。
  * 连线先描 GROW_EDGE_MS，节点再隔同样的时间长出。
+ * 步骤主线的链条边（上一个新节点连过来的）也一并跟着描。
  * @param {Map<string, any>} previous
  * @param {Map<string, any>} next
  * @param {any[]} edges
@@ -57,10 +58,54 @@ export function growPlan(previous, next, edges) {
   const grown = [];
   for (const edge of edges) {
     const child = byChild.get(edge.to);
-    if (!child || edge.from !== next.get(edge.to).parentId) continue;
+    if (!child) continue;
+    // 直连父节点的边照描；步骤主线是上一个新节点连过来的链条边，跟着一起长。
+    if (edge.from !== next.get(edge.to).parentId && !byChild.has(edge.from)) continue;
     grown.push({ id: edge.id, to: edge.to, delay: child.delay });
   }
   return { nodes, edges: grown };
+}
+/**
+ * 生长动画什么时候播：展开来源当帧就播；点进主题/问题是换层导航，要等
+ * 收起/过渡动画放完、节点停稳之后再播；动效关闭（顶栏开关或系统减少
+ * 动态）时不播，新节点直接出现。
+ * @param {{ collapsing?: boolean, instant?: boolean, growInto?: boolean }} transition
+ * @returns {"immediate" | "after-settle" | "none"}
+ */
+export function growMode({ collapsing = false, instant = false, growInto = false } = {}) {
+  if (instant) return "none";
+  if (collapsing) return growInto ? "after-settle" : "none";
+  return "immediate";
+}
+
+/** 浅弧统一向行进方向左侧弯曲，扇出边不再随机相向挤压。 */
+export function edgePath(a, b, kind) {
+  const gap = kind === "connector" ? 0 : kind === "source" ? 5 : 7;
+  const dx = b.screen.x - a.screen.x;
+  const dy = b.screen.y - a.screen.y;
+  const dist = Math.hypot(dx, dy);
+  const ux = dist ? dx / dist : 1;
+  const uy = dist ? dy / dist : 0;
+  // 节点正在从父节点长出时，按比例收缩锚点，避免短边翻转。
+  const trim = Math.min(1, dist / (a.radius + b.radius + 2 * gap + 1));
+  const start = {
+    x: a.screen.x + ux * (a.radius + gap) * trim,
+    y: a.screen.y + uy * (a.radius + gap) * trim,
+  };
+  const end = {
+    x: b.screen.x - ux * (b.radius + gap) * trim,
+    y: b.screen.y - uy * (b.radius + gap) * trim,
+  };
+  const ratio = kind === "core-theme" ? 0.07 : kind === "source" ? 0.05 : 0.08;
+  const bow = Math.hypot(end.x - start.x, end.y - start.y) * ratio;
+  const control = {
+    x: (start.x + end.x) / 2 - uy * bow,
+    y: (start.y + end.y) / 2 + ux * bow,
+  };
+  return {
+    path: `M ${start.x.toFixed(1)} ${start.y.toFixed(1)} Q ${control.x.toFixed(1)} ${control.y.toFixed(1)} ${end.x.toFixed(1)} ${end.y.toFixed(1)}`,
+    mid: { x: (start.x + 2 * control.x + end.x) / 4, y: (start.y + 2 * control.y + end.y) / 4 },
+  };
 }
 
 export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onActivate, onHoverChange }) {
@@ -74,6 +119,8 @@ export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onA
   let placements = new Map();
   let instant = false;
   let collapseUntil = 0;
+/** 点进更深一层挂起的生长计划：等收起/过渡稳定后在 frame() 里触发。 */
+let pendingGrow = null;
   let selection = { selectedId: null, nodeIds: new Set(), edgeIds: new Set(), focusChain: false };
   /** 聚焦模式下要保留原亮度的当前路径；null 表示没开聚焦。 */
   let focusPath = null;
@@ -206,7 +253,7 @@ export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onA
    * @param {{ placements: Map<string, any> }} layout
    * @param {any[]} graphEdges
    */
-  function setLayout(layout, graphEdges, { collapse = false, nodes = null } = {}) {
+  function setLayout(layout, graphEdges, { collapse = false, nodes = null, growInto = false } = {}) {
     if (nodes) {
       const latest = latestStepDate(nodes);
       recencyDays = latest ? daysSince(latest) : null;
@@ -282,7 +329,9 @@ export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onA
     }
 
     syncEdges();
-    if (!collapsing && !instant) growIn(previous);
+    const mode = growMode({ collapsing, instant, growInto });
+    pendingGrow = mode === "after-settle" ? { previous } : null;
+    if (mode === "immediate") growIn(previous);
     applyStates();
   }
 
@@ -341,7 +390,19 @@ export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onA
       const flow = document.createElementNS("http://www.w3.org/2000/svg", "path");
       flow.setAttribute("class", "edge-flow");
       flow.setAttribute("pathLength", "100");
-      g.append(line, flow);
+      const mask = document.createElementNS("http://www.w3.org/2000/svg", "mask");
+      const maskId = `edge-reveal-${edgeViews.size}-${hashString(edge.id)}`;
+      mask.id = maskId;
+      mask.setAttribute("maskUnits", "userSpaceOnUse");
+      mask.style.maskType = "alpha";
+      const reveal = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      reveal.setAttribute("class", "edge-reveal");
+      mask.appendChild(reveal);
+      const strokes = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      strokes.setAttribute("class", "edge-strokes");
+      g.style.setProperty("--edge-mask", `url(#${maskId})`);
+      strokes.append(line, flow);
+      g.append(mask, strokes);
       edgeGroup.appendChild(g);
       let tag = null;
       if (edge.kind === "inferred") {
@@ -350,7 +411,7 @@ export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onA
         tag.textContent = "关联待确认";
         tagsLayer.appendChild(tag);
       }
-      edgeViews.set(edge.id, { edge, g, line, flow, tag, bow: hashString(edge.id) % 2 ? 1 : -1 });
+      edgeViews.set(edge.id, { edge, g, line, flow, mask, reveal, tag });
     }
   }
 
@@ -529,12 +590,19 @@ export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onA
       const a = rendered.get(view.edge.from);
       const b = rendered.get(view.edge.to);
       if (!a?.screen || !b?.screen) continue;
-      const d = edgePath(a, b, view);
+      const d = edgePath(a, b, view.edge.kind);
       view.line.setAttribute("d", d.path);
       view.flow.setAttribute("d", d.path);
-      if (view.g.classList.contains("is-growing") && !view.line.style.getPropertyValue("--edge-length")) {
-        const length = view.line.getTotalLength?.();
-        if (Number.isFinite(length) && length > 0) view.line.style.setProperty("--edge-length", String(length));
+      view.reveal.setAttribute("d", d.path);
+      // 遮罩以屏幕坐标覆盖整条曲线及箭头，避免默认边界裁掉浅弧。
+      const pad = Math.hypot(b.screen.x - a.screen.x, b.screen.y - a.screen.y) * 0.1 + 20;
+      view.mask.setAttribute("x", String(Math.min(a.screen.x, b.screen.x) - pad));
+      view.mask.setAttribute("y", String(Math.min(a.screen.y, b.screen.y) - pad));
+      view.mask.setAttribute("width", String(Math.abs(b.screen.x - a.screen.x) + pad * 2));
+      view.mask.setAttribute("height", String(Math.abs(b.screen.y - a.screen.y) + pad * 2));
+      if (view.g.classList.contains("is-growing")) {
+        const length = view.line.getTotalLength();
+        view.g.style.setProperty("--edge-length", String(Math.max(0.1, length)));
       }
       if (view.tag) {
         const visible = view.g.classList.contains("is-active");
@@ -549,7 +617,7 @@ export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onA
         const { from, to } = connector;
         connectorEl.setAttribute(
           "d",
-          `M ${from.x.toFixed(1)} ${from.y.toFixed(1)} L ${to.x.toFixed(1)} ${to.y.toFixed(1)}`
+          edgePath({ screen: from, radius: 0 }, { screen: to, radius: 0 }, "connector").path
         );
         connectorEl.classList.add("is-visible");
       } else {
@@ -557,36 +625,12 @@ export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onA
       }
     }
 
+    if (pendingGrow && !instant && !busy && now >= collapseUntil) {
+      const settleGrow = pendingGrow;
+      pendingGrow = null;
+      growIn(settleGrow.previous);
+    }
     return busy;
-  }
-
-  function edgePath(a, b, view) {
-    const gap = view.edge.kind === "source" ? 5 : 7;
-    const dx = b.screen.x - a.screen.x;
-    const dy = b.screen.y - a.screen.y;
-    const dist = Math.hypot(dx, dy) || 1;
-    const ux = dx / dist;
-    const uy = dy / dist;
-    const start = {
-      x: a.screen.x + ux * (a.radius + gap),
-      y: a.screen.y + uy * (a.radius + gap),
-    };
-    const end = {
-      x: b.screen.x - ux * (b.radius + gap),
-      y: b.screen.y - uy * (b.radius + gap),
-    };
-    const bowRatio = view.edge.kind === "core-theme" ? 0.07 : view.edge.kind === "source" ? 0.05 : 0.08;
-    const bow = dist * bowRatio * view.bow;
-    const mid = {
-      x: (start.x + end.x) / 2 - uy * bow,
-      y: (start.y + end.y) / 2 + ux * bow,
-    };
-    return {
-      path: `M ${start.x.toFixed(1)} ${start.y.toFixed(1)} Q ${mid.x.toFixed(1)} ${mid.y.toFixed(
-        1
-      )} ${end.x.toFixed(1)} ${end.y.toFixed(1)}`,
-      mid,
-    };
   }
 
   return {
@@ -605,15 +649,17 @@ export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onA
       instant = Boolean(value);
       if (!instant) return;
       collapseUntil = 0;
+      pendingGrow = null;
       breatheElapsed = 0;
       applyCoreBreath();
+      for (const [, view] of edgeViews) view.g.classList.remove("is-growing");
       for (const [id, view] of rendered) {
         if (view.exiting) {
           removeNode(id, view);
           continue;
         }
         view.heldUntil = 0;
-        view.el.classList.remove("is-held", "is-entering");
+        view.el.classList.remove("is-held", "is-entering", "is-growing");
         const p = view.placement;
         view.cur = { x: p.x, y: p.y, size: p.size };
       }

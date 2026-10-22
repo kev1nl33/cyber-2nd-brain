@@ -83,3 +83,17 @@ export function routeEquals(a, b) {
     a.sourceId === b.sourceId
   );
 }
+
+
+const LEVEL_DEPTH = { overview: 0, theme: 1, idea: 2, step: 3 };
+/**
+ * Whether a level change dives into a view instead of backing out. Diving
+ * into a theme / question — sideways jumps included — lets the new children
+ * grow in; backing out to an outer level never replays the grow animation.
+ * @param {RouteState} previous
+ * @param {RouteState} next
+ * @returns {boolean}
+ */
+export function divesIn(previous, next) {
+  return (LEVEL_DEPTH[next.level] ?? 0) >= (LEVEL_DEPTH[previous.level] ?? 0);
+}
