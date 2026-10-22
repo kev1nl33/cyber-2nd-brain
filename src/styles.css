@@ -449,6 +449,19 @@ button {
   animation: edgeFlash 0.9s ease-out 1;
 }
 
+/* 展开：连线从父节点沿路径描出，300ms，同层错开由 --grow-delay 决定。
+   不改 stroke-dasharray，虚线边长出来后仍是虚线。 */
+.edge.is-growing .edge-line {
+  stroke-dashoffset: var(--edge-length, 1);
+  animation: edgeGrow 300ms linear var(--grow-delay, 0ms) both;
+}
+
+@keyframes edgeGrow {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
 @keyframes edgeFlow {
   from {
     stroke-dashoffset: 100;
@@ -785,6 +798,22 @@ button {
 .node.is-entering .node-art,
 .node.is-entering .node-label {
   opacity: 0;
+}
+
+/* 连线描完后，节点从 0.6 倍长到原大，200ms。 */
+.node.is-growing {
+  animation: nodeGrow 200ms ease-out var(--grow-delay, 0ms) both;
+}
+
+@keyframes nodeGrow {
+  from {
+    opacity: 0;
+    transform: translate3d(var(--x, 0px), var(--y, 0px), 0) translate(-50%, -50%) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(var(--x, 0px), var(--y, 0px), 0) translate(-50%, -50%) scale(1);
+  }
 }
 
 .node.is-held .node-art,
@@ -1450,11 +1479,13 @@ button {
 }
 
 .app[data-motion="off"] .node,
+.app[data-motion="off"] .node.is-growing,
 .app[data-motion="off"] .brain-spark,
 .app[data-motion="off"] .glyph-halo,
 .app[data-motion="off"] .node-art,
 .app[data-motion="off"] .node-label,
 .app[data-motion="off"] .edge,
+.app[data-motion="off"] .edge.is-growing .edge-line,
 .app[data-motion="off"] .edge-line,
 .app[data-motion="off"] .popover,
 .app[data-motion="off"] .popover-stack-card,
@@ -1914,7 +1945,9 @@ button {
   .intro-brain,
   .intro-caption,
   .edge.is-pulsing .edge-line,
-  .edge.is-replay-flash .edge-line {
+  .edge.is-replay-flash .edge-line,
+  .edge.is-growing .edge-line,
+  .node.is-growing {
     animation: none !important;
   }
 }

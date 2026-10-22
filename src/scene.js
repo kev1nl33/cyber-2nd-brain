@@ -33,6 +33,33 @@ const ANCHOR = {
 };
 
 const EASE_TAU = 0.17;
+const GROW_STAGGER = 40;
+const GROW_EDGE_MS = 300;
+const GROW_NODE_MS = 200;
+
+/**
+ * 展开时新进来的子节点，按布局插入顺序同层错开。
+ * 连线先描 GROW_EDGE_MS，节点再隔同样的时间长出。
+ * @param {Map<string, any>} previous
+ * @param {Map<string, any>} next
+ * @param {any[]} edges
+ */
+export function growPlan(previous, next, edges) {
+  const nodes = [];
+  for (const [id, placement] of next) {
+    if (previous.has(id) || !placement.parentId || !previous.has(placement.parentId)) continue;
+    const delay = nodes.length * GROW_STAGGER;
+    nodes.push({ id, delay, edgeDelay: delay, nodeDelay: delay + GROW_EDGE_MS });
+  }
+  const byChild = new Map(nodes.map((item) => [item.id, item]));
+  const grown = [];
+  for (const edge of edges) {
+    const child = byChild.get(edge.to);
+    if (!child || edge.from !== next.get(edge.to).parentId) continue;
+    grown.push({ id: edge.id, to: edge.to, delay: child.delay });
+  }
+  return { nodes, edges: grown };
+}
 
 export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivate, onHoverChange }) {
   const edgeGroup = edgesSvg.querySelector("#edge-group");
@@ -241,7 +268,31 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
     }
 
     syncEdges();
+    if (!collapsing && !instant) growIn(previous);
     applyStates();
+  }
+
+  /** 新子节点沿连线长出：连线先描，节点随后，同层错开。 */
+  function growIn(previous) {
+    const plan = growPlan(previous, placements, edges);
+    if (!plan.nodes.length) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    for (const item of plan.edges) {
+      const view = edgeViews.get(item.id);
+      if (!view) continue;
+      view.g.style.setProperty("--grow-delay", `${item.delay}ms`);
+      view.g.classList.add("is-growing");
+      if (reduce) view.g.classList.remove("is-growing");
+      else window.setTimeout(() => view.g.classList.remove("is-growing"), item.delay + GROW_EDGE_MS);
+    }
+    for (const item of plan.nodes) {
+      const view = rendered.get(item.id);
+      if (!view) continue;
+      view.el.style.setProperty("--grow-delay", `${item.nodeDelay}ms`);
+      view.el.classList.add("is-growing");
+      if (reduce) view.el.classList.remove("is-growing");
+      else window.setTimeout(() => view.el.classList.remove("is-growing"), item.nodeDelay + GROW_NODE_MS);
+    }
   }
 
   function centerOf(layer) {
@@ -411,6 +462,8 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
       const px = artPx(p, view.cur.size);
       view.screen = screen;
       view.radius = (px / 2) * (ANCHOR[p.node.type] ?? 0.6);
+      view.el.style.setProperty("--x", `${screen.x.toFixed(1)}px`);
+      view.el.style.setProperty("--y", `${screen.y.toFixed(1)}px`);
       view.el.style.transform = `translate3d(${screen.x.toFixed(1)}px, ${screen.y.toFixed(
         1
       )}px, 0) translate(-50%, -50%)`;
@@ -425,6 +478,10 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
       const d = edgePath(a, b, view);
       view.line.setAttribute("d", d.path);
       view.flow.setAttribute("d", d.path);
+      if (view.g.classList.contains("is-growing") && !view.line.style.getPropertyValue("--edge-length")) {
+        const length = view.line.getTotalLength?.();
+        if (Number.isFinite(length) && length > 0) view.line.style.setProperty("--edge-length", String(length));
+      }
       if (view.tag) {
         const visible = view.g.classList.contains("is-active");
         view.tag.classList.toggle("is-visible", visible);
