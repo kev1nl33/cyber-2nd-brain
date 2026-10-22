@@ -636,8 +636,26 @@ export function startApp() {
   // ------------------------------------------------------------------ gestures
 
   const pointers = new Map();
+  const pressedPointers = new Set();
   let panning = null;
   let pinch = null;
+
+  // 捕获阶段同时覆盖画布和会阻止事件冒泡的浮框。
+  window.addEventListener("pointerdown", (event) => {
+    pressedPointers.add(event.pointerId);
+    scene.setHoverSuspended(true);
+  }, true);
+  const resumeHover = (event) => {
+    pressedPointers.delete(event.pointerId);
+    scene.setHoverSuspended(pressedPointers.size > 0);
+  };
+  window.addEventListener("pointerup", resumeHover, true);
+  window.addEventListener("pointercancel", resumeHover, true);
+  window.addEventListener("blur", () => {
+    pressedPointers.clear();
+    scene.setHoverSuspended(true);
+  });
+  window.addEventListener("focus", () => scene.setHoverSuspended(pressedPointers.size > 0));
 
   el.stage.addEventListener("pointerdown", (event) => {
     if (event.target.closest(".node")) return;

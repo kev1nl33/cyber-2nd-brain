@@ -298,7 +298,7 @@ button {
 }
 
 .edge {
-  transition: opacity 0.26s ease;
+  transition: opacity 0.2s ease;
 }
 
 .edge--core-theme .edge-line {
@@ -340,13 +340,11 @@ button {
   opacity: 0.26;
 }
 
-.edge.is-active .edge-line,
-.edge.is-hover .edge-line {
+.edge.is-active .edge-line {
   stroke: rgba(205, 255, 226, 0.82);
 }
 
-.edge--inferred.is-active .edge-line,
-.edge--inferred.is-hover .edge-line {
+.edge--inferred.is-active .edge-line {
   stroke: rgba(158, 234, 244, 0.9);
 }
 
@@ -446,6 +444,7 @@ button {
   pointer-events: auto;
   cursor: pointer;
   --brain: 1;
+  transition: opacity 0.2s ease;
 }
 
 .node-art {
@@ -697,12 +696,9 @@ button {
   color: #f2fff8;
 }
 
-.node.is-hover {
-  --brain: 1;
-}
-
-.node.is-hover .node-art {
-  filter: drop-shadow(0 0 5px var(--green-mid));
+.node.is-hover-dim,
+.edge.is-hover-dim {
+  opacity: 0.25;
 }
 
 .node.is-entering .node-art,
