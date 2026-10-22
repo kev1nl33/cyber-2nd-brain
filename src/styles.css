@@ -916,6 +916,54 @@ button {
   box-shadow: 0 26px 60px rgba(0, 0, 0, 0.7);
 }
 
+/* 叠放阅读：从步骤浮框再进来源时，前一张缩成窄卡贴在当前浮框左侧，
+   最多三张，从左到右由旧到新。点窄卡回到那一张。 */
+.popover-stack {
+  position: fixed;
+  z-index: 89;
+  top: var(--stack-top, var(--inset-top));
+  left: var(--stack-left, 0px);
+  height: var(--stack-height, 240px);
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.popover-stack[hidden] {
+  display: none;
+}
+
+.popover-stack-card {
+  width: 36px;
+  max-width: 48px;
+  padding: 10px 0;
+  border: 1px solid rgba(126, 242, 176, 0.26);
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgba(8, 20, 18, 0.95) 0%, rgba(4, 12, 12, 0.95) 100%);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.popover-stack-card:hover,
+.popover-stack-card:focus-visible {
+  border-color: rgba(126, 242, 176, 0.6);
+  outline: none;
+}
+
+.popover-stack-title {
+  display: block;
+  margin: 0 auto;
+  writing-mode: vertical-rl;
+  max-height: 100%;
+  overflow: hidden;
+  font-size: var(--fs-small);
+  line-height: 1;
+  letter-spacing: 0.12em;
+  color: #eafff4;
+}
+
 .popover-handle {
   flex: none;
   display: flex;
@@ -1317,6 +1365,7 @@ button {
 .app[data-motion="off"] .edge,
 .app[data-motion="off"] .edge-line,
 .app[data-motion="off"] .popover,
+.app[data-motion="off"] .popover-stack-card,
 .app[data-motion="off"] .intro-brain,
 .app[data-motion="off"] .intro-caption {
   animation: none !important;

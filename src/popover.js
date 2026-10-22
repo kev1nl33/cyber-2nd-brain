@@ -11,8 +11,10 @@
 const MARGIN = 10;
 const NODE_GAP = 16;
 const MIN_BODY_HEIGHT = 16;
+/** 叠放阅读：前一张浮框缩成的窄卡最多保留几张。 */
+const STACK_LIMIT = 3;
 
-export function createPopover({ el, onClose, onAction }) {
+export function createPopover({ el, onClose, onAction, onBack }) {
   const titleEl = el.querySelector("#popover-title");
   const kickerEl = el.querySelector("#popover-kicker");
   const bodyEl = el.querySelector("#popover-body");
@@ -30,6 +32,8 @@ export function createPopover({ el, onClose, onAction }) {
   let drag = null;
   /** 当前面板是不是断语卡/模式卡（.verdict）；断语卡按内容自适应高度。 */
   let verdictCard = false;
+  /** 叠放阅读：被压成窄卡的前序浮框，从旧到新，最多 STACK_LIMIT 张。 */
+  const stack = [];
 
   closeBtn.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -42,8 +46,24 @@ export function createPopover({ el, onClose, onAction }) {
   el.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       event.stopPropagation();
+      if (stack.length) {
+        onBack?.();
+        return;
+      }
       close();
     }
+  });
+
+  // 窄卡在浮框左侧的叠放栏里，点击其中一张即回退到那一层。
+  const rail = document.createElement("div");
+  rail.className = "popover-stack";
+  rail.hidden = true;
+  el.parentElement?.insertBefore(rail, el);
+  rail.addEventListener("click", (event) => {
+    const card = event.target.closest("[data-stack-index]");
+    if (!card) return;
+    event.stopPropagation();
+    onBack?.(Number(card.dataset.stackIndex));
   });
 
   actionsEl.addEventListener("click", (event) => {
@@ -112,13 +132,25 @@ export function createPopover({ el, onClose, onAction }) {
   function applyPosition(pos) {
     placed = pos;
     el.style.transform = `translate3d(${pos.x.toFixed(1)}px, ${pos.y.toFixed(1)}px, 0)`;
+    placeStack();
+  }
+
+  /** 窄卡贴在当前浮框左侧，高度跟浮框走，不单独占一条轨道。 */
+  function placeStack() {
+    if (!stack.length) return;
+    const rect = el.getBoundingClientRect();
+    rail.style.setProperty("--stack-top", `${rect.top.toFixed(1)}px`);
+    rail.style.setProperty("--stack-left", `${Math.max(MARGIN, rect.left - rail.offsetWidth - 6).toFixed(1)}px`);
+    rail.style.setProperty("--stack-height", `${rect.height.toFixed(1)}px`);
   }
 
   /**
-   * @param {{ title: string, kicker?: string, body: string, actions?: string, anchor: {x:number,y:number,r:number}, viaKeyboard?: boolean, returnFocus?: HTMLElement|null, keepPosition?: boolean }} options
+   * @param {{ title: string, kicker?: string, body: string, actions?: string, anchor: {x:number,y:number,r:number}, viaKeyboard?: boolean, returnFocus?: HTMLElement|null, keepPosition?: boolean, stack?: boolean }} options
    */
   function show(options) {
     const wasOpen = open;
+    // 叠放阅读：从当前浮框再进一层时，先把当前内容压成左侧窄卡。
+    if (options.stack && wasOpen) pushStack();
     titleEl.textContent = options.title;
     kickerEl.innerHTML = options.kicker || "";
     kickerEl.hidden = !options.kicker;
@@ -143,6 +175,62 @@ export function createPopover({ el, onClose, onAction }) {
       requestAnimationFrame(() => el.classList.add("is-open"));
     }
     if (options.viaKeyboard) el.focus({ preventScroll: true });
+  }
+
+  /** 把当前浮框的内容压进叠放栏，最旧的一张超出上限时丢掉。 */
+  function pushStack() {
+    stack.push({
+      title: titleEl.textContent,
+      kicker: kickerEl.innerHTML,
+      kickerHidden: kickerEl.hidden,
+      body: bodyEl.innerHTML,
+      actions: actionsEl.innerHTML,
+      actionsHidden: actionsEl.hidden,
+    });
+    if (stack.length > STACK_LIMIT) stack.shift();
+    renderStack();
+  }
+
+  /** 回退到某一张窄卡：它成为当前浮框，比它新的窄卡一并丢弃。 */
+  function restoreStack(index) {
+    const entry = stack[index];
+    if (!entry) return false;
+    stack.splice(index);
+    renderStack();
+    titleEl.textContent = entry.title;
+    kickerEl.innerHTML = entry.kicker;
+    kickerEl.hidden = entry.kickerHidden;
+    bodyEl.innerHTML = entry.body;
+    bodyEl.scrollTop = 0;
+    actionsEl.innerHTML = entry.actions;
+    actionsEl.hidden = entry.actionsHidden;
+    naturalHeight = measureNaturalHeight();
+    verdictCard = el.querySelector(".verdict") !== null;
+    return true;
+  }
+
+  function renderStack() {
+    rail.replaceChildren(
+      ...stack.map((entry, index) => {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "popover-stack-card";
+        card.dataset.stackIndex = String(index);
+        card.setAttribute("aria-label", `返回「${entry.title}」`);
+        const label = document.createElement("span");
+        label.className = "popover-stack-title";
+        label.textContent = entry.title;
+        card.append(label);
+        return card;
+      })
+    );
+    rail.hidden = stack.length === 0;
+  }
+
+  function clearStack() {
+    if (!stack.length) return;
+    stack.length = 0;
+    renderStack();
   }
 
   /** Measure the panel without a viewport cap, so the open direction can be chosen. */
@@ -249,6 +337,7 @@ export function createPopover({ el, onClose, onAction }) {
     open = false;
     manual = null;
     verdictCard = false;
+    clearStack();
     el.classList.remove("is-open");
     el.hidden = true;
     const target = returnFocusTo;
@@ -261,6 +350,11 @@ export function createPopover({ el, onClose, onAction }) {
     show,
     reposition,
     close,
+    restoreStack,
+    clearStack,
+    get stackDepth() {
+      return stack.length;
+    },
     get isOpen() {
       return open;
     },
