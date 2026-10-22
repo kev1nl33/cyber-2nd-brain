@@ -46,6 +46,8 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
   let instant = false;
   let collapseUntil = 0;
   let selection = { selectedId: null, nodeIds: new Set(), edgeIds: new Set(), focusChain: false };
+  /** 聚焦模式下要保留原亮度的当前路径；null 表示没开聚焦。 */
+  let focusPath = null;
   /** 弹窗开着才流动；弹窗关闭后链的高亮保留，光点停止。 */
   let flowing = false;
   let hoverId = null;
@@ -276,6 +278,7 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
         ? "dim"
         : "idle";
       el.classList.toggle("is-hover", id === hoverId);
+      el.classList.toggle("is-off-path", Boolean(focusPath) && !focusPath.nodeIds.has(id));
       if (isSelected) el.setAttribute("aria-current", "true");
       else el.removeAttribute("aria-current");
     }
@@ -287,6 +290,8 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
       if (!active || !flowing) view.g.classList.remove("is-pulsing");
       view.g.classList.toggle("is-hover", Boolean(touchesHover));
       view.g.classList.toggle("is-dim", Boolean(focusChain && !active && !touchesHover));
+      view.g.classList.toggle("is-off-path", Boolean(focusPath) && !focusPath.edgeIds.has(id));
+      view.tag?.classList.toggle("is-off-path", Boolean(focusPath) && !focusPath.edgeIds.has(id));
     }
   }
 
@@ -304,6 +309,15 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
 
   function setFlowing(value) {
     flowing = Boolean(value);
+    applyStates();
+  }
+
+  /**
+   * 聚焦模式：路径内的节点和连线保持原亮度，其余由 CSS 压到 0.1。
+   * @param {{ nodeIds: Set<string>, edgeIds: Set<string> }|null} next
+   */
+  function setFocusPath(next) {
+    focusPath = next || null;
     applyStates();
   }
 
@@ -420,6 +434,7 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
     isCollapsing,
     setSelection,
     setFlowing,
+    setFocusPath,
     setConnector,
     frame,
     setInstant(value) {

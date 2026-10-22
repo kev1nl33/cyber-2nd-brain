@@ -47,6 +47,7 @@ export function startApp() {
     selectedId: null,
     expanded: new Set(),
     popover: null,
+    focusMode: false,
     motion: !prefersReduced,
   };
 
@@ -131,6 +132,7 @@ export function startApp() {
       if (instantCamera) camera.snap();
     }
     applySelection();
+    syncFocus();
     renderChrome();
   }
 
@@ -187,6 +189,44 @@ export function startApp() {
       edgeIds,
       focusChain: selected.type === "step" || selected.type === "source" || selected.type === "conclusion",
     });
+  }
+
+  /**
+   * 聚焦模式的当前路径：当前问题、它的整条步骤链、已展开步骤的来源节点，
+   * 以及连接这些节点的连线。总览和主题层没有当前问题，返回 null。
+   */
+  function focusPath() {
+    const { level, themeId, ideaId } = state.route;
+    if (level !== "idea" && level !== "step") return null;
+    const idea = graph.idea(themeId, ideaId);
+    if (!idea) return null;
+
+    const nodeIds = new Set([idea.id]);
+    for (const step of graph.steps(themeId, ideaId)) {
+      nodeIds.add(step.id);
+      if (!state.expanded.has(step.id)) continue;
+      for (const source of graph.sources(step.id)) nodeIds.add(source.id);
+    }
+
+    const edgeIds = new Set();
+    for (const edge of graph.edges) {
+      if (nodeIds.has(edge.from) && nodeIds.has(edge.to)) edgeIds.add(edge.id);
+    }
+    return { nodeIds, edgeIds };
+  }
+
+  /** 路径没了（例如回到总览）就自动退出聚焦，状态只由 route 和展开决定。 */
+  function syncFocus() {
+    const path = state.focusMode ? focusPath() : null;
+    if (state.focusMode && !path) state.focusMode = false;
+    el.app.classList.toggle("is-focus-mode", Boolean(path));
+    scene.setFocusPath(path);
+  }
+
+  function toggleFocus() {
+    if (!state.focusMode && !focusPath()) return;
+    state.focusMode = !state.focusMode;
+    syncFocus();
   }
 
   function renderChrome() {
@@ -731,6 +771,19 @@ export function startApp() {
     if (member) openLesson(member.dataset.star);
   });
 
+  // 聚焦模式叠在浮框之上：Esc 先退出聚焦，再关浮框、返回上层。
+  // 捕获阶段拦下，避免浮框自己的 Esc 处理同时把卡片关掉。
+  window.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.key !== "Escape" || !state.focusMode) return;
+      event.stopPropagation();
+      state.focusMode = false;
+      syncFocus();
+    },
+    true
+  );
+
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       if (popover.isOpen) return popover.close();
@@ -738,6 +791,11 @@ export function startApp() {
       return;
     }
     if (event.target.closest("input, textarea")) return;
+    if (event.key === "f" || event.key === "F") {
+      if (event.metaKey || event.ctrlKey || event.altKey || event.repeat || event.isComposing) return;
+      toggleFocus();
+      return;
+    }
     if (event.key === "+" || event.key === "=") camera.zoomBy(1.2);
     if (event.key === "-" || event.key === "_") camera.zoomBy(1 / 1.2);
     if (event.key === "0") {

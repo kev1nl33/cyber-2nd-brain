@@ -298,7 +298,7 @@ button {
 }
 
 .edge {
-  transition: opacity 0.26s ease;
+  transition: opacity 0.2s ease;
 }
 
 .edge--core-theme .edge-line {
@@ -446,6 +446,7 @@ button {
   pointer-events: auto;
   cursor: pointer;
   --brain: 1;
+  transition: opacity 0.2s ease;
 }
 
 .node-art {
@@ -717,6 +718,15 @@ button {
 
 .node.is-exiting {
   --brain: 0;
+}
+
+/* --------------------------------------------------------------- focus mode */
+
+/* F 键聚焦：当前路径以外的节点、连线和连线标签降到 0.1，200ms 过渡。 */
+.app.is-focus-mode .node.is-off-path,
+.app.is-focus-mode .edge.is-off-path,
+.app.is-focus-mode .edge-tag.is-off-path.is-visible {
+  opacity: 0.1;
 }
 
 /* --------------------------------------------------------------- brain art */
