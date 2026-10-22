@@ -119,6 +119,31 @@ function project(stars) {
   return points.map((point) => ({ ...point, x: point.x / span, y: point.y / span }));
 }
 
+/**
+ * 本地日期字符串，作为今日一星的种子。用本地时区而不是 UTC，
+ * 免得东八区清晨刷新时还停在昨天。
+ * @param {Date} [date]
+ */
+export function localDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * 今日一星：只按日期做种子，不碰 Date.now() 或随机数状态。
+ * 同一份星表在同一天永远选出同一条经验，跨天才会换一颗。
+ * 星表为空时返回 null，星空不做任何标记。
+ * @param {any[]} lessons
+ * @param {string} dateKey 本地日期，YYYY-MM-DD
+ */
+export function pickDailyLesson(lessons, dateKey) {
+  if (!Array.isArray(lessons) || lessons.length === 0) return null;
+  const rng = makeRng(`daily:${dateKey}`);
+  return lessons[Math.floor(rng() * lessons.length)];
+}
+
 export function createStars({ layer, svg, onOpen }) {
   const data = globalThis.window?.LESSONS;
   const lessons = Array.isArray(data?.lessons) ? data.lessons : [];
@@ -131,6 +156,7 @@ export function createStars({ layer, svg, onOpen }) {
     star: principals[index],
   }));
   const patternOf = new Map(assigned.map((entry) => [entry.pattern.id, entry]));
+  const daily = pickDailyLesson(lessons, localDateKey());
 
   const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
   group.setAttribute("class", "constellations");
@@ -271,6 +297,32 @@ function scatter(star, rng, placed) {
   let openId = null;
   let hoverPatternId = null;
 
+  /** 今日一星：当天选中的那条经验加一点标记，让人一眼看到从哪开始看。 */
+  let dailyKey = localDateKey();
+  let dailyId = daily?.id || null;
+  let dailyCheckedAt = 0;
+  applyDaily();
+
+  function applyDaily() {
+    for (const [id, mark] of marks) {
+      if (mark.kind !== "lesson") continue;
+      const on = id === dailyId;
+      mark.el.classList.toggle("is-daily", on);
+      mark.el.setAttribute("aria-label", `${on ? "今日一星：" : "经验："}${mark.lesson.text}`);
+    }
+  }
+
+  /** 页面一直开着跨过零点时，把标记挪到新一天的那颗星上；每分钟最多查一次。 */
+  function syncDaily(now) {
+    if (now - dailyCheckedAt < 60000) return;
+    dailyCheckedAt = now;
+    const key = localDateKey();
+    if (key === dailyKey) return;
+    dailyKey = key;
+    dailyId = pickDailyLesson(lessons, key)?.id || null;
+    applyDaily();
+  }
+
   /** 天秤铺满链条上下之间的画布，留出顶栏、底栏，也给上下两颗主星留出星点本身的高度。 */
   function canvasBox() {
     const style = getComputedStyle(document.documentElement);
@@ -293,6 +345,7 @@ function scatter(star, rng, placed) {
   }
 
   function frame() {
+    syncDaily(Date.now());
     const positions = new Map();
     for (const [id, mark] of marks) {
       const point = screenOf(mark.nx, mark.ny);
