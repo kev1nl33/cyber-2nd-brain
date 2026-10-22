@@ -55,11 +55,13 @@ assert(backOneLevel(parseHash("#/develop")).level === "overview", "back from the
 // ------------------------------------------------------- graph and layout
 
 globalThis.window = globalThis.window || {};
-try {
-  await import("../private-data/thoughts.js");
-  await import("../private-data/flomo.js");
-} catch (error) {
-  console.warn("note: private-data 不可用，使用示例数据 —", error.message);
+if (process.argv.includes("--private-data")) {
+  try {
+    await import("../private-data/thoughts.js");
+    await import("../private-data/flomo.js");
+  } catch (error) {
+    console.warn("note: private-data 不可用，使用示例数据 —", error.message);
+  }
 }
 
 const { loadGraph } = await import("../src/graph.js");

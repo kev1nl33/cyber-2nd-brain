@@ -92,6 +92,59 @@ button {
   background: linear-gradient(0deg, rgba(4, 9, 10, 0.88) 0%, rgba(4, 9, 10, 0) 100%);
 }
 
+/* 时间条占底栏上沿，浮框通过 --inset-bottom 避让。 */
+.replay {
+  position: absolute;
+  bottom: 100%;
+  left: 24px;
+  right: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #7ef2b0;
+  background: rgba(4, 9, 10, 0.92);
+  border-top: 1px solid rgba(126, 242, 176, 0.2);
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.replay-play {
+  flex: 0 0 36px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: none;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.replay-play:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.replay-range {
+  flex: 1;
+  min-width: 0;
+  height: 20px;
+  margin: 0;
+  accent-color: #7ef2b0;
+  cursor: ew-resize;
+}
+
+.replay-date {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.replay :focus-visible {
+  outline: 1px solid #7ef2b0;
+  outline-offset: 1px;
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -364,7 +417,8 @@ button {
 }
 
 /* Click highlight flashes the base line only, so it never restarts the loop on .edge-flow. */
-.edge.is-pulsing .edge-line {
+.edge.is-pulsing .edge-line,
+.edge.is-replay-flash .edge-line {
   animation: edgeFlash 0.9s ease-out 1;
 }
 
@@ -1718,7 +1772,8 @@ button {
   .glyph-halo,
   .intro-brain,
   .intro-caption,
-  .edge.is-pulsing .edge-line {
+  .edge.is-pulsing .edge-line,
+  .edge.is-replay-flash .edge-line {
     animation: none !important;
   }
 }

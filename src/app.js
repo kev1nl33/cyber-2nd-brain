@@ -12,6 +12,7 @@ import { createPopover } from "./popover.js";
 import { backOneLevel, buildHash, parseHash } from "./route.js";
 import { createScene } from "./scene.js";
 import { createStars } from "./stars.js";
+import { createReplay } from "./replay.js";
 
 export function startApp() {
   const el = {
@@ -41,7 +42,8 @@ export function startApp() {
   const graph = loadGraph();
   if (graph.usingSample) el.sampleHint.hidden = false;
 
-  const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const prefersReduced = motionPreference.matches;
   const state = {
     route: normalizeRoute(parseHash(location.hash), graph),
     selectedId: null,
@@ -83,6 +85,28 @@ export function startApp() {
 
   let layout = null;
   let pendingActivation = null;
+  let replaySelection = false;
+  const replay = createReplay({ host: el.bottomBar, onSelect: selectReplayStep });
+
+  function selectReplayStep(step, played) {
+    replaySelection = true;
+    state.selectedId = step.id;
+    if (state.popover && !state.popover.lessonId && !state.popover.patternId) {
+      openInspector(step, { keepPosition: true });
+    } else {
+      applySelection();
+    }
+    const route = { level: "step", themeId: step.themeId, ideaId: step.ideaId, stepId: step.stepId };
+    state.route = route;
+    history.replaceState(null, "", buildHash(route));
+    renderChrome();
+    if (played) scene.flashEdges(graph.edgesInto(step.id).map((edge) => edge.id));
+  }
+
+  function pauseReplay() {
+    replay.pause();
+    scene.clearFlashes();
+  }
 
   applyMotion(state.motion, { silent: true });
   measureInsets();
@@ -101,12 +125,18 @@ export function startApp() {
 
   function render({ refit = false, instantCamera = false, collapse = false } = {}) {
     const rect = el.stage.getBoundingClientRect();
+    const { level, themeId, ideaId } = state.route;
+    replay.setContext(
+      level === "idea" || level === "step" ? `${themeId}/${ideaId}` : null,
+      ideaId ? graph.steps(themeId, ideaId) : []
+    );
+    measureInsets();
     camera.setArea({
       width: rect.width,
       height: rect.height,
       insets: {
         top: el.topBar.offsetHeight + 14,
-        bottom: el.bottomBar.offsetHeight + 14,
+        bottom: el.bottomBar.offsetHeight + (replay.steps.length ? 24 : 0) + 14,
         left: 18,
         right: 18,
       },
@@ -139,8 +169,22 @@ export function startApp() {
   }
 
   function applySelection() {
-    scene.setFlowing(Boolean(state.popover));
+    scene.setFlowing(Boolean(state.popover) && !replaySelection);
     const selected = state.selectedId ? graph.nodes.get(state.selectedId) : null;
+    if (replaySelection && selected?.type === "step") {
+      const nodeIds = replay.steps.slice(0, replay.index + 1).map((step) => step.id);
+      const idea = graph.idea(selected.themeId, selected.ideaId);
+      if (idea) nodeIds.push(idea.id);
+      const visited = new Set(nodeIds);
+      scene.setSelection({
+        selectedId: selected.id,
+        nodeIds,
+        edgeIds: graph.edges.filter((edge) => visited.has(edge.from) && visited.has(edge.to)).map((edge) => edge.id),
+        focusChain: true,
+        pulse: false,
+      });
+      return;
+    }
     if (!selected) {
       scene.setSelection({ selectedId: null });
       return;
@@ -223,6 +267,8 @@ export function startApp() {
   // -------------------------------------------------------------- interaction
 
   function activateNode(nodeId, element) {
+    pauseReplay();
+    replaySelection = false;
     if (scene.isCollapsing()) {
       pendingActivation = { nodeId, element };
       return;
@@ -389,6 +435,8 @@ export function startApp() {
   }
 
   function applyRoute(next, { force = false } = {}) {
+    pauseReplay();
+    replaySelection = false;
     pendingActivation = null;
     const previous = state.route;
     const structuralChange =
@@ -424,6 +472,7 @@ export function startApp() {
     }
 
     render({ refit: structuralChange || force, collapse: structuralChange });
+    replay.syncSelected(state.selectedId);
 
     if (state.popover) {
       const node = state.popover.nodeId ? graph.nodes.get(state.popover.nodeId) : null;
@@ -659,6 +708,7 @@ export function startApp() {
 
   el.stage.addEventListener("pointerdown", (event) => {
     if (event.target.closest(".node")) return;
+    pauseReplay();
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pointers.size === 1) {
       panning = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: 0 };
@@ -749,6 +799,23 @@ export function startApp() {
     if (member) openLesson(member.dataset.star);
   });
 
+  el.popover.addEventListener("pointerdown", pauseReplay);
+  el.popover.addEventListener("keydown", pauseReplay);
+  el.stars.addEventListener("pointerdown", pauseReplay);
+  el.stars.addEventListener("keydown", pauseReplay);
+  motionPreference.addEventListener("change", () => {
+    replay.setMotion(state.motion && !motionPreference.matches);
+    if (motionPreference.matches) applyMotion(false);
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && replay.playing) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      pauseReplay();
+    }
+  }, true);
+
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       if (popover.isOpen) return popover.close();
@@ -779,16 +846,19 @@ export function startApp() {
 
   function measureInsets() {
     document.documentElement.style.setProperty("--inset-top", `${el.topBar.offsetHeight}px`);
-    document.documentElement.style.setProperty("--inset-bottom", `${el.bottomBar.offsetHeight}px`);
+    document.documentElement.style.setProperty("--inset-bottom", `${el.bottomBar.offsetHeight + (replay.steps.length ? 24 : 0)}px`);
   }
 
   document.addEventListener("visibilitychange", () => {
+    if (document.hidden) pauseReplay();
     if (!document.hidden && !state.motion) background.frame(0, camera.current, false);
   });
 
   function applyMotion(on, { silent = false } = {}) {
     const wasOn = state.motion;
     state.motion = on;
+    replay.setMotion(on && !motionPreference.matches);
+    if (!on) scene.clearFlashes();
     el.app.dataset.motion = on ? "on" : "off";
     el.motion.setAttribute("aria-pressed", on ? "false" : "true");
     el.motion.textContent = on ? "动效 开" : "动效 关";

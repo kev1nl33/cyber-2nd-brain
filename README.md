@@ -71,13 +71,14 @@ python3 -m http.server 8765 --bind 127.0.0.1
 
 ```bash
 node scripts/check.mjs
-node scripts/check-lessons.mjs
+node scripts/check-replay.mjs
 ```
 
-- `check.mjs`：检查路由、图谱连接、来源引用和布局；会先尝试读取本地私有数据，不可用时使用示例数据。
+- `check.mjs`：默认只使用示例数据，检查路由、图谱连接、来源引用和布局；允许访问真实笔记时可显式传入 `--private-data`。
+- `check-replay.mjs`：仅使用合成数据，检查日期排序、播放节奏、拖动、暂停和减少动态效果。
 - `check-lessons.mjs`：检查经验与问题、步骤、模式之间的引用一致性，依赖本地私有数据。
 
-**两个脚本都会尝试读取 `private-data/`，仅在允许访问本地真实笔记时运行。**
+**只有 `check.mjs --private-data` 和 `check-lessons.mjs` 会尝试读取 `private-data/`，仅在允许访问本地真实笔记时运行。**
 
 </details>
 
