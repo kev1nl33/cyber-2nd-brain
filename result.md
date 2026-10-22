@@ -3,7 +3,7 @@
 基线：`main` @ `24f62f8`（Merge integration/night-1022）。全部合并在分支 `integration/night-1022b` 上完成，
 未切换分支、未合并到 `main`、未推送、未部署、未触碰 R2 与 `private-data/`。
 
-最终提交：`5523ee2`（`5523ee2481efff684120dbedde053d0a14ca1965`）
+集成完成于 `5523ee2`，其后只有修正本文件提交号的文档提交（`git log -1` 即当前 HEAD）。
 
 ## 合并顺序
 
