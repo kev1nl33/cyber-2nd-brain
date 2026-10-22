@@ -29,7 +29,11 @@
   </tbody>
 </table>
 
-画布支持缩放、平移与复位，浮框可拖动；主题、问题与步骤的浏览位置可通过地址栏链接定位。
+画布支持缩放、平移与复位，主题、问题与步骤的浏览位置可通过地址栏链接定位。
+
+- **浮框**：高度随内容自适应，可整体拖动。内容不多时一次显示完；超出画布可用高度时在框内滚动，头部与「在画布展开来源」等操作按钮钉在底部。
+- **悬停邻域高亮**：鼠标悬停约 120ms 后，节点与一跳邻居保持亮度，其余节点和连线淡至 0.25 透明度，200ms 过渡；点击选中优先，触屏不触发。
+- **思考回放**：展开问题后，底部出现一条细时间条。播放时按日期每 0.8 秒点亮一步并闪亮到该步的连线，可拖动时间条跳步，Esc 或再次点击暂停；系统开启「减少动态效果」时不自动播放，仅支持拖动回看。
 
 ## 界面
 
@@ -65,7 +69,7 @@ python3 -m http.server 8765 --bind 127.0.0.1
 </details>
 
 <details>
-<summary><strong>检查脚本</strong></summary>
+<summary><strong>检查与测试</strong></summary>
 
 需要 Node.js。在项目根目录运行：
 
@@ -77,7 +81,16 @@ node scripts/check-lessons.mjs
 - `check.mjs`：检查路由、图谱连接、来源引用和布局；会先尝试读取本地私有数据，不可用时使用示例数据。
 - `check-lessons.mjs`：检查经验与问题、步骤、模式之间的引用一致性，依赖本地私有数据。
 
-**两个脚本都会尝试读取 `private-data/`，仅在允许访问本地真实笔记时运行。**
+**两个 check 脚本都会尝试读取 `private-data/`，仅在允许访问本地真实笔记时运行。**
+
+单元测试基于 Node 内置的 `node:test`，零依赖、不读 `private-data/`，可单独运行：
+
+```bash
+node scripts/test-graph.mjs
+node scripts/test-layout.mjs
+node scripts/test-route.mjs
+node scripts/test-random.mjs
+```
 
 </details>
 
@@ -102,11 +115,13 @@ node scripts/check-lessons.mjs
 │   ├── scene.js             # 画布节点与连线
 │   ├── stars.js             # 天秤座经验星空
 │   ├── popover.js           # 浮框与卡片
+│   ├── replay.js            # 思考回放时间条
 │   ├── sample-data.js       # 示例数据
 │   └── styles.css           # 页面样式
-├── scripts/                 # 检查脚本
+├── scripts/                 # 检查与测试脚本
 │   ├── check.mjs
-│   └── check-lessons.mjs
+│   ├── check-lessons.mjs
+│   └── test-*.mjs           # 单元测试（graph / layout / route / random）
 ├── PRD.md                   # 产品需求与方向
 ├── current.md               # 当前界面与交互约定
 ├── visual-polish.md         # 视觉调整文档
