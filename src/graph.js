@@ -196,7 +196,7 @@ export function loadGraph() {
     sources: (stepNodeId) => {
       const step = nodes.get(stepNodeId);
       if (!step) return [];
-      return step.refIds.map((refId) =>
+      return [...new Set(step.refIds)].map((refId) =>
         nodes.get(`source:${step.themeId}/${step.ideaId}/${step.stepId}/${refId}`)
       ).filter(Boolean);
     },
