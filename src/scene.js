@@ -4,6 +4,7 @@
  * pixel size, and node ids never change while animating.
  */
 import { brainArt } from "./anatomy.js";
+import { coreBrightness, daysSince, latestStepDate } from "./glow.js";
 import { conclusionGlyph, ideaGlyph, sourceGlyph, stepGlyph } from "./glyphs.js";
 import { hashString } from "./random.js";
 
@@ -56,6 +57,9 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
   const noHover = window.matchMedia("(hover: none)");
   const neighbors = new Map();
   let connector = null;
+  /** 最近一次步骤日期距今天数。没有可用日期时为 null，亮度落在最暗端。 */
+  let recencyDays = null;
+  let breatheElapsed = 0;
 
   noHover.addEventListener("change", () => clearHover());
 
@@ -170,7 +174,12 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
    * @param {{ placements: Map<string, any> }} layout
    * @param {any[]} graphEdges
    */
-  function setLayout(layout, graphEdges, { collapse = false } = {}) {
+  function setLayout(layout, graphEdges, { collapse = false, nodes = null } = {}) {
+    if (nodes) {
+      const latest = latestStepDate(nodes);
+      recencyDays = latest ? daysSince(latest) : null;
+      applyCoreBreath();
+    }
     const previous = placements;
     const collapsing = collapse && !instant;
     const oldCenter = centerOf(previous);
@@ -385,10 +394,26 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
     connector = link;
   }
 
+  /** 只改 core 节点的亮度变量，不写任何日期或内容到画面上。 */
+  function applyCoreBreath() {
+    const level = coreBrightness(recencyDays, breatheElapsed, { breathe: !instant }).toFixed(3);
+    for (const [, view] of rendered) {
+      if (view.placement.node.type !== "core") continue;
+      view.el.style.setProperty("--breathe", level);
+    }
+  }
+
   function frame(dt) {
     let busy = camera.step(dt);
     const k = instant ? 1 : 1 - Math.exp(-dt / EASE_TAU);
     const now = performance.now();
+    if (!instant) {
+      breatheElapsed += dt;
+      applyCoreBreath();
+    } else if (breatheElapsed !== 0) {
+      breatheElapsed = 0;
+      applyCoreBreath();
+    }
 
     for (const [, view] of rendered) {
       const p = view.placement;
@@ -493,6 +518,8 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
       instant = Boolean(value);
       if (!instant) return;
       collapseUntil = 0;
+      breatheElapsed = 0;
+      applyCoreBreath();
       for (const [id, view] of rendered) {
         if (view.exiting) {
           removeNode(id, view);

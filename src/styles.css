@@ -525,6 +525,7 @@ button {
   pointer-events: auto;
   cursor: pointer;
   --brain: 1;
+  --breathe: 1;
   transition: opacity 0.2s ease;
 }
 
@@ -739,6 +740,11 @@ button {
   font-size: 12px;
   letter-spacing: 0.04em;
   max-width: 124px;
+}
+
+/* 中心物体的亮度随最近步骤日期变化，再叠加慢呼吸。标签不受影响。 */
+.node[data-type="core"] .node-art {
+  opacity: calc(var(--brain) * var(--breathe));
 }
 
 .node[data-role="theme"] {
@@ -1802,6 +1808,10 @@ button {
   .brain-pulse,
   .edge-flow {
     display: none;
+  }
+
+  .node[data-type="core"] .node-art {
+    transition: none;
   }
 
   .brain-spark,

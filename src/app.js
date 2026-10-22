@@ -156,7 +156,7 @@ export function startApp() {
       { width: rect.width, height: rect.height }
     );
 
-    scene.setLayout(layout, graph.edges, { collapse });
+    scene.setLayout(layout, graph.edges, { collapse, nodes: graph.nodes });
     // Only level changes, reset and resize refit: selecting a node or
     // expanding a source branch must leave the camera exactly where it is.
     if (refit) {

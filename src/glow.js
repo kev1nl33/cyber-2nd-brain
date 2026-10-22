@@ -1,3 +1,75 @@
+/** 亮度区间：最近也不会暗到看不见，最亮不超过原色。 */
+const BRIGHT_MAX = 1;
+const BRIGHT_MIN = 0.55;
+const FRESH_DAYS = 3;
+const FADED_DAYS = 30;
+const BREATH_PERIOD = 6;
+const BREATH_AMPLITUDE = 0.06;
+const DAY_MS = 86_400_000;
+
+/** 日期字符串距今天的整天数（UTC 日历日）。缺失或无法解析返回 null，不读任何内容。 */
+export function daysSince(date, now = new Date()) {
+  const parsed = parseDay(date);
+  if (parsed === null) return null;
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.round((today - parsed) / DAY_MS);
+}
+
+/**
+ * 中心物体亮度。0-3 天为 1，30 天及以上为 0.55，中间线性插值。
+ * elapsed 为秒数时叠加 6 秒一周的慢呼吸，结果始终夹在 [0.55, 1]。
+ * @param {number|null|undefined} days 距今天数，或直接传入已算好的基础亮度（仅测试呼吸时使用天数）
+ */
+export function coreBrightness(days, elapsed = 0, { breathe = true } = {}) {
+  let base;
+  if (typeof days !== "number" || !Number.isFinite(days) || days < 0) {
+    base = BRIGHT_MIN;
+  } else if (days <= FRESH_DAYS) {
+    base = BRIGHT_MAX;
+  } else if (days >= FADED_DAYS) {
+    base = BRIGHT_MIN;
+  } else {
+    const t = (days - FRESH_DAYS) / (FADED_DAYS - FRESH_DAYS);
+    base = BRIGHT_MAX - t * (BRIGHT_MAX - BRIGHT_MIN);
+  }
+  if (!breathe) return base;
+  const wave = Math.sin((2 * Math.PI * elapsed) / BREATH_PERIOD);
+  return clamp(base + wave * BREATH_AMPLITUDE, BRIGHT_MIN, BRIGHT_MAX);
+}
+
+/** 只取步骤节点的日期字段，返回最晚的一天；没有可用日期时返回 null。 */
+export function latestStepDate(nodes) {
+  let latest = null;
+  const list = nodes instanceof Map ? nodes.values() : nodes || [];
+  for (const node of list) {
+    if (!node || node.type !== "step") continue;
+    const day = parseDay(node.date);
+    if (day === null) continue;
+    if (latest === null || day > latest) latest = day;
+  }
+  if (latest === null) return null;
+  return new Date(latest).toISOString().slice(0, 10);
+}
+
+function parseDay(date) {
+  if (typeof date !== "string" || !date) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(date);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const utc = Date.UTC(year, month - 1, day);
+  const check = new Date(utc);
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) {
+    return null;
+  }
+  return utc;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
 /** 屏幕中心的光环：缓存静态外晕，只推进亮弧角度。 */
 export function createGlow(ctx) {
   const noop = { frame() {}, resize() {} };
