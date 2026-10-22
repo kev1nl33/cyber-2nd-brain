@@ -360,9 +360,14 @@ button {
   stroke-dasharray: 7 93;
 }
 
-.edge.is-pulsing .edge-flow {
+.edge.is-flowing .edge-flow {
   stroke: rgba(216, 255, 233, 0.92);
-  animation: edgeFlow 1s ease-out 1;
+  animation: edgeFlow 2.4s linear infinite;
+}
+
+/* Click highlight flashes the base line only, so it never restarts the loop on .edge-flow. */
+.edge.is-pulsing .edge-line {
+  animation: edgeFlash 0.9s ease-out 1;
 }
 
 @keyframes edgeFlow {
@@ -371,6 +376,13 @@ button {
   }
   to {
     stroke-dashoffset: -3;
+  }
+}
+
+@keyframes edgeFlash {
+  from {
+    stroke: rgba(255, 255, 255, 0.95);
+    stroke-width: 2.6;
   }
 }
 
@@ -1298,6 +1310,7 @@ button {
 .app[data-motion="off"] .node-art,
 .app[data-motion="off"] .node-label,
 .app[data-motion="off"] .edge,
+.app[data-motion="off"] .edge-line,
 .app[data-motion="off"] .popover,
 .app[data-motion="off"] .intro-brain,
 .app[data-motion="off"] .intro-caption {
@@ -1709,7 +1722,8 @@ button {
   .brain-spark,
   .glyph-halo,
   .intro-brain,
-  .intro-caption {
+  .intro-caption,
+  .edge.is-pulsing .edge-line {
     animation: none !important;
   }
 }

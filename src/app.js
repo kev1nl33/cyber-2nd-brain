@@ -76,6 +76,7 @@ export function startApp() {
       state.popover = null;
       stars.setOpen(null);
       scene.setConnector(null);
+      scene.setFlowing(false);
     },
     onAction: handlePopoverAction,
   });
@@ -138,6 +139,7 @@ export function startApp() {
   }
 
   function applySelection() {
+    scene.setFlowing(Boolean(state.popover));
     const selected = state.selectedId ? graph.nodes.get(state.selectedId) : null;
     if (!selected) {
       scene.setSelection({ selectedId: null });
