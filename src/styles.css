@@ -1017,15 +1017,24 @@ button {
   /* 高度随内容走；上限是画布可用高度：视口减上下栏，再留上下各 10px（对应 popover.js 的 MARGIN）。
      超过上限才由 .popover-body 内部滚动，头部和按钮不跟着滚。 */
   max-height: calc(100dvh - var(--inset-top) - var(--inset-bottom) - 20px);
-  background: linear-gradient(180deg, rgba(8, 20, 18, 0.95) 0%, rgba(4, 12, 12, 0.95) 100%);
-  border: 1px solid rgba(126, 242, 176, 0.26);
+  /* 深色玻璃底：半透明让画布透出来，模糊把它挡在文字后面。
+     不支持 backdrop-filter 的浏览器退回不透明，否则文字会直接压在画布上。 */
+  background: rgba(8, 16, 15, 0.72);
+  border: 1px solid rgba(126, 242, 176, 0.15);
   border-radius: 3px;
   box-shadow: 0 20px 56px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(126, 242, 176, 0.08);
-  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
   overflow: hidden;
   opacity: 0;
   transform-origin: top left;
   transition: opacity 0.2s ease;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .popover {
+    background: rgb(8, 16, 15);
+  }
 }
 
 .popover.is-open {
@@ -1142,7 +1151,7 @@ button {
   flex-wrap: wrap;
   padding: var(--space-2) var(--space-4) 0;
   font-family: var(--font-mono);
-  font-size: var(--fs-kicker);
+  font-size: var(--fs-body);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: rgba(126, 242, 176, 0.68);
@@ -1181,7 +1190,7 @@ button {
 
 .popover-hint {
   margin: 0 0 var(--space-2);
-  font-size: var(--fs-small);
+  font-size: var(--fs-body);
   line-height: 1.6;
   color: var(--text-faint);
 }
@@ -1195,7 +1204,7 @@ button {
 .popover-sub {
   margin: var(--space-4) 0 var(--space-1);
   font-family: var(--font-mono);
-  font-size: var(--fs-kicker);
+  font-size: var(--fs-body);
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -1232,14 +1241,14 @@ button {
 }
 
 .popover-link span {
-  font-size: 12px;
+  font-size: var(--fs-body);
   line-height: 1.5;
   color: var(--text);
 }
 
 .popover-link small {
   font-family: var(--font-mono);
-  font-size: var(--fs-kicker);
+  font-size: var(--fs-body);
   color: var(--text-faint);
 }
 
@@ -1265,19 +1274,19 @@ button {
   position: absolute;
   left: 0;
   font-family: var(--font-mono);
-  font-size: var(--fs-kicker);
+  font-size: var(--fs-body);
   color: rgba(126, 242, 176, 0.5);
 }
 
 .popover-evidence span {
-  font-size: 11.5px;
+  font-size: var(--fs-body);
   line-height: 1.5;
 }
 
 .popover-evidence small {
   flex: none;
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--fs-body);
   color: var(--text-faint);
 }
 
@@ -1293,7 +1302,7 @@ button {
 
 .popover-raw {
   white-space: pre-wrap;
-  font-size: 12px;
+  font-size: var(--fs-body);
   line-height: 1.75;
   color: var(--text-dim);
   margin-bottom: 9px;
@@ -1314,7 +1323,7 @@ button {
   background: rgba(12, 32, 26, 0.6);
   color: var(--green);
   font-family: var(--font-mono);
-  font-size: var(--fs-meta);
+  font-size: var(--fs-body);
   letter-spacing: 0.08em;
   cursor: pointer;
   transition: background 0.18s ease, border-color 0.18s ease;
