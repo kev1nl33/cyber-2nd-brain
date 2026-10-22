@@ -1,10 +1,11 @@
 /**
  * The node popover: a thin inspector attached to the selected node.
  * Nodes in the upper half of the canvas open it upwards; nodes in the lower
- * half open it downwards. Its height is capped by the room between the node
- * and the viewport edge, and the body scrolls once the content outgrows that
- * room. It can be dragged by its header, and it never pans, zooms or scrolls
- * anything behind it.
+ * half open it downwards. Its height follows the content and is capped at the
+ * usable canvas height (viewport minus the bars and margins); only past that
+ * cap does the body scroll, with the header and actions staying in place. It
+ * can be dragged by its header, and it never pans, zooms or scrolls anything
+ * behind it.
  */
 
 const MARGIN = 10;
@@ -229,27 +230,13 @@ export function createPopover({ el, onClose, onAction }) {
 
     const gap = anchor.r + NODE_GAP;
 
-    // 断语卡（含主星模式卡）高度随内容走：只要装得下画布可用空间就完整显示，
-    // 装不下才把面板限高到可用空间，由 .popover-body 自己滚动。页面本身不滚。
-    if (verdictCard) {
-      const available = Math.max(1, Math.floor(bounds.bottom - bounds.top));
-      if (el.style.maxHeight !== `${available}px`) el.style.maxHeight = `${available}px`;
-      const height = Math.min(el.getBoundingClientRect().height || naturalHeight, available);
-      const y = direction === "up" ? anchor.y - gap - height : anchor.y + gap;
-      applyPosition({
-        x,
-        y: Math.max(bounds.top, Math.min(y, bounds.bottom - height)),
-      });
-      return;
-    }
-
-    // 链条弹窗维持原逻辑：只用锚点朝向那一侧的余量，超出就滚动。
-    const room = Math.max(0, spaceFor(direction, anchor, bounds));
-    const maxHeight = Math.max(1, Math.floor(room));
-    if (el.style.maxHeight !== `${maxHeight}px`) el.style.maxHeight = `${maxHeight}px`;
+    // 高度随内容走：上限是画布可用高度（视口减上下栏和边距），装得下就完整显示，
+    // 装不下才限高到可用空间，由 .popover-body 自己滚动，头部和按钮固定。页面本身不滚。
+    const available = Math.max(1, Math.floor(bounds.bottom - bounds.top));
+    if (el.style.maxHeight !== `${available}px`) el.style.maxHeight = `${available}px`;
     // Read the settled height so late font swaps or wrapping changes cannot
-    // push the panel into the node it belongs to.
-    const height = Math.min(el.getBoundingClientRect().height || naturalHeight, maxHeight);
+    // push the panel outside the canvas.
+    const height = Math.min(el.getBoundingClientRect().height || naturalHeight, available);
     const y = direction === "up" ? anchor.y - gap - height : anchor.y + gap;
     applyPosition({
       x,
