@@ -156,6 +156,7 @@ for (const file of [
   "test-two-hop.mjs",
   "test-daily-star.mjs",
   "test-grow.mjs",
+  "test-curves.mjs",
   "test-core-breathe.mjs",
   "test-anatomy.mjs",
   "test-camera.mjs",

@@ -126,13 +126,13 @@ test("样式：连线 300ms 描边，节点 200ms 从 0.6 长到 1，减少动�
   assert.ok(edge, "edgeGrow keyframes");
   assert.ok(node, "nodeGrow keyframes");
   assert.match(edge[0], /stroke-dashoffset:\s*0/);
-  assert.match(css, /\.edge\.is-growing \.edge-line\s*\{[\s\S]*?animation:[^;]*edgeGrow\s+300ms/);
+  assert.match(css, /\.edge\.is-growing \.edge-reveal\s*\{[\s\S]*?animation:[^;]*edgeGrow\s+300ms/);
   assert.match(css, /\.node\.is-growing\s*\{[\s\S]*?animation:[^;]*nodeGrow\s+200ms/);
   assert.match(node[0], /scale\(0\.6\)/);
   assert.match(node[0], /scale\(1\)/);
   assert.match(
     css,
-    /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*\.edge\.is-growing \.edge-line[\s\S]*?animation:\s*none/
+    /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*\.edge\.is-growing \.edge-reveal[\s\S]*?animation:\s*none/
   );
   assert.match(
     css,

@@ -454,9 +454,20 @@ button {
   animation: edgeFlash 0.9s ease-out 1;
 }
 
-/* 展开：连线从父节点沿路径描出，300ms，同层错开由 --grow-delay 决定。
-   不改 stroke-dasharray，虚线边长出来后仍是虚线。 */
-.edge.is-growing .edge-line {
+/* 遮罩沿同一条曲线描出，保留底线原来的虚线和流光节奏。 */
+.edge.is-growing .edge-strokes {
+  mask: var(--edge-mask);
+}
+
+.edge-reveal {
+  fill: none;
+  stroke: #7ef2b0;
+  stroke-width: 24;
+  stroke-linecap: butt;
+}
+
+.edge.is-growing .edge-reveal {
+  stroke-dasharray: var(--edge-length, 1) var(--edge-length, 1);
   stroke-dashoffset: var(--edge-length, 1);
   animation: edgeGrow 300ms linear var(--grow-delay, 0ms) both;
 }
@@ -1531,7 +1542,7 @@ button {
 .app[data-motion="off"] .node-art,
 .app[data-motion="off"] .node-label,
 .app[data-motion="off"] .edge,
-.app[data-motion="off"] .edge.is-growing .edge-line,
+.app[data-motion="off"] .edge.is-growing .edge-reveal,
 .app[data-motion="off"] .edge-line,
 .app[data-motion="off"] .popover,
 .app[data-motion="off"] .popover-stack-card,
@@ -1539,6 +1550,18 @@ button {
 .app[data-motion="off"] .intro-caption {
   animation: none !important;
   transition: none !important;
+}
+
+.app[data-motion="off"] .edge.is-growing .edge-reveal {
+  stroke-dasharray: none;
+  stroke-dashoffset: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .edge.is-growing .edge-reveal {
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
 }
 
 .app[data-motion="off"] .node-kicker,
@@ -2027,7 +2050,7 @@ button {
   .intro-caption,
   .edge.is-pulsing .edge-line,
   .edge.is-replay-flash .edge-line,
-  .edge.is-growing .edge-line,
+  .edge.is-growing .edge-reveal,
   .node.is-growing {
     animation: none !important;
   }
