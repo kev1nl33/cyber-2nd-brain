@@ -14,6 +14,8 @@ export function createRain(ctx) {
   let height = 0;
   let baseRgb = [126, 242, 176];
   let headRgb = [229, 253, 239];
+  /** 尾端全透明的渐变端色，只随主题色变化，readGreen 时一并算好。 */
+  let tailColor = "rgba(126, 242, 176, 0.000)";
   let meteors = [];
 
   // 接口与 glow.js 一致；dpr 已由共享画布的 setTransform 处理。
@@ -61,9 +63,9 @@ export function createRain(ctx) {
       const tx = m.x - m.dx * m.len;
       const ty = m.y - m.dy * m.len;
       const grad = ctx.createLinearGradient(m.x, m.y, tx, ty);
-      grad.addColorStop(0, rgba(headRgb, 0.75 * m.bright));
-      grad.addColorStop(0.25, rgba(baseRgb, 0.35 * m.bright));
-      grad.addColorStop(1, rgba(baseRgb, 0));
+      grad.addColorStop(0, m.headStop);
+      grad.addColorStop(0.25, m.bodyStop);
+      grad.addColorStop(1, tailColor);
       ctx.strokeStyle = grad;
       ctx.lineWidth = m.width;
       ctx.beginPath();
@@ -71,11 +73,11 @@ export function createRain(ctx) {
       ctx.lineTo(tx, ty);
       ctx.stroke();
       // 头部光晕 + 亮核
-      ctx.fillStyle = rgba(baseRgb, 0.18 * m.bright);
+      ctx.fillStyle = m.haloFill;
       ctx.beginPath();
       ctx.arc(m.x, m.y, m.width * 3.2, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = rgba(headRgb, 0.95 * m.bright);
+      ctx.fillStyle = m.coreFill;
       ctx.beginPath();
       ctx.arc(m.x, m.y, m.width * 1.1, 0, Math.PI * 2);
       ctx.fill();
@@ -97,6 +99,12 @@ export function createRain(ctx) {
     m.x = range(rng, -0.2, 0.9) * width;
     m.y = -range(rng, 10, 120);
     m.delay = 0;
+    // 四个颜色串只随 bright 与主题色变化：重生时算一次，帧循环直接取。
+    // 主题色只在 resize（先 readGreen 再整批重生）时变，不会出现旧串。
+    m.headStop = rgba(headRgb, 0.75 * m.bright);
+    m.bodyStop = rgba(baseRgb, 0.35 * m.bright);
+    m.haloFill = rgba(baseRgb, 0.18 * m.bright);
+    m.coreFill = rgba(headRgb, 0.95 * m.bright);
     return m;
   }
 
@@ -106,6 +114,7 @@ export function createRain(ctx) {
     const value = Number.isNaN(n) ? 0x7ef2b0 : n;
     baseRgb = [(value >> 16) & 255, (value >> 8) & 255, value & 255];
     headRgb = baseRgb.map((c) => Math.round(c + (255 - c) * 0.8));
+    tailColor = rgba(baseRgb, 0);
   }
 
   return { frame, resize };

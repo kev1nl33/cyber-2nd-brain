@@ -86,6 +86,11 @@ export function createGlow(ctx) {
   let segments = 48;
   let lineWidth = 1.5;
   let ring = null;
+  /** 每段的起角、中角、止角。段数只在 resize 变，帧循环里不再逐段重乘。
+   *  角度表达式与原先逐帧的 i * step / start + step / 2 / start + step 完全一致。 */
+  let starts = [];
+  let mids = [];
+  let ends = [];
 
   function resize(width, height, dpr) {
     halo.width = ctx.canvas.width;
@@ -99,8 +104,19 @@ export function createGlow(ctx) {
     segments = mobile ? 24 : 48;
     lineWidth = mobile ? 2 : 1.5;
     ring = null;
+    starts = [];
+    mids = [];
+    ends = [];
     const green = getComputedStyle(document.documentElement).getPropertyValue("--green").trim();
     if (!radius) return;
+
+    const step = turn / segments;
+    for (let i = 0; i < segments; i++) {
+      const start = i * step;
+      starts.push(start);
+      mids.push(start + step / 2);
+      ends.push(start + step);
+    }
 
     const outer = haloCtx.createRadialGradient(cx, cy, radius * 0.75, cx, cy, radius * 1.25);
     outer.addColorStop(0, withAlpha(green, 0));
@@ -128,14 +144,12 @@ export function createGlow(ctx) {
     ctx.save();
     ctx.strokeStyle = ring;
     ctx.lineWidth = lineWidth;
-    const step = turn / segments;
     for (let i = 0; i < segments; i++) {
-      const start = i * step;
-      const distance = Math.atan2(Math.sin(start + step / 2 - angle), Math.cos(start + step / 2 - angle));
+      const distance = Math.atan2(Math.sin(mids[i] - angle), Math.cos(mids[i] - angle));
       const brightness = Math.exp(-(distance * distance) / 0.5);
       ctx.globalAlpha = 0.18 + brightness * 0.82;
       ctx.beginPath();
-      ctx.arc(cx, cy, radius, start, start + step);
+      ctx.arc(cx, cy, radius, starts[i], ends[i]);
       ctx.stroke();
     }
     ctx.restore();

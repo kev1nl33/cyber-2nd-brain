@@ -163,6 +163,8 @@ for (const file of [
   "test-glyphs.mjs",
   "test-parallax.mjs",
   "test-lod.mjs",
+  "test-perf-budget.mjs",
+  "test-effects-perf.mjs",
 ]) {
   const script = fileURLToPath(new URL(file, import.meta.url));
   const run = spawnSync(process.execPath, [script], { encoding: "utf8" });

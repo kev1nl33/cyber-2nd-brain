@@ -53,6 +53,14 @@ export function createBackground({ canvas }) {
       t: rng() * 3,
       size: range(rng, 8, 12),
     }));
+    // 稳态颜色与字号只随铺种结果变化，铺种后不变；这里算好，帧循环不再拼字符串。
+    // intro 期间透明度逐帧变化，仍按帧现算，公式一字未动。
+    for (const m of motes) m.fill = `rgba(150, 240, 190, ${m.a.toFixed(3)})`;
+    for (const d of digits) {
+      d.font = `500 ${d.size.toFixed(1)}px "DM Mono", ui-monospace, monospace`;
+      d.fill = `rgba(126, 226, 172, ${d.a.toFixed(3)})`;
+      d.introFill = `rgba(126, 226, 172, ${(d.a * 1.8).toFixed(3)})`;
+    }
   }
 
   /**
@@ -65,15 +73,16 @@ export function createBackground({ canvas }) {
     ctx.clearRect(0, 0, width, height);
     const cx = width / 2;
     const cy = height / 2;
+    const intro = mode === "intro";
 
     drawGrid(camera);
 
-    if (mode === "intro") introT += dt;
+    if (intro) introT += dt;
 
     ctx.save();
     for (const m of motes) {
       if (motion) {
-        if (mode === "intro") {
+        if (intro) {
           const dx = cx - m.x;
           const dy = cy - m.y;
           const d = Math.hypot(dx, dy) || 1;
@@ -89,8 +98,9 @@ export function createBackground({ canvas }) {
         if (m.y < -10) m.y = height + 10;
         if (m.y > height + 10) m.y = -10;
       }
-      const alpha = mode === "intro" ? m.a * Math.max(0, 1 - introT / 3.4) : m.a;
-      ctx.fillStyle = `rgba(150, 240, 190, ${alpha.toFixed(3)})`;
+      ctx.fillStyle = intro
+        ? `rgba(150, 240, 190, ${(m.a * Math.max(0, 1 - introT / 3.4)).toFixed(3)})`
+        : m.fill;
       ctx.beginPath();
       ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
       ctx.fill();
@@ -98,7 +108,6 @@ export function createBackground({ canvas }) {
     ctx.restore();
 
     ctx.save();
-    ctx.font = `500 11px "DM Mono", ui-monospace, monospace`;
     for (const d of digits) {
       if (motion) {
         d.y += d.v * dt;
@@ -112,8 +121,8 @@ export function createBackground({ canvas }) {
           d.x = rng() * width;
         }
       }
-      ctx.font = `500 ${d.size.toFixed(1)}px "DM Mono", ui-monospace, monospace`;
-      ctx.fillStyle = `rgba(126, 226, 172, ${(mode === "intro" ? d.a * 1.8 : d.a).toFixed(3)})`;
+      ctx.font = d.font;
+      ctx.fillStyle = intro ? d.introFill : d.fill;
       ctx.fillText(d.ch, d.x, d.y);
     }
     ctx.restore();

@@ -1045,7 +1045,12 @@ export function startApp() {
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) pauseReplay();
-    if (!document.hidden && !state.motion) background.frame(0, camera.current, false);
+    else {
+      if (!state.motion) background.frame(0, camera.current, false);
+      // 恢复时重置时间基准，避免把隐藏期间的时间算成一帧的大 dt。
+      last = performance.now();
+      scheduleLoop();
+    }
   });
 
   function applyMotion(on, { silent = false } = {}) {
@@ -1072,10 +1077,17 @@ export function startApp() {
     meteors.frame(0, false);
   }
   let last = performance.now();
+  let rafId = 0;
+  /** 页面隐藏时不再排队任何帧，可见后从这里恢复整个循环。 */
+  function scheduleLoop() {
+    if (rafId || document.hidden) return;
+    rafId = requestAnimationFrame(tick);
+  }
   function tick(now) {
+    rafId = 0;
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
-    if (state.motion && !document.hidden) background.frame(dt, camera.current, true);
+    if (state.motion) background.frame(dt, camera.current, true);
     scene.frame(dt);
     if (pendingActivation && !scene.isCollapsing()) {
       const { nodeId, element } = pendingActivation;
@@ -1084,11 +1096,11 @@ export function startApp() {
     }
     stars.frame();
     applyParallax();
-    if (!document.hidden) meteors.frame(dt, state.motion);
+    meteors.frame(dt, state.motion);
     syncPopoverAnchor();
-    requestAnimationFrame(tick);
+    scheduleLoop();
   }
-  requestAnimationFrame(tick);
+  scheduleLoop();
 
   function resizeMeteors() {
     const rect = el.bg.getBoundingClientRect();

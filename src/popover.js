@@ -35,6 +35,35 @@ export function createPopover({ el, onClose, onAction, onBack }) {
   /** 叠放阅读：被压成窄卡的前序浮框，从旧到新，最多 STACK_LIMIT 张。 */
   const stack = [];
 
+  el.setAttribute("aria-modal", "false");
+
+  /** 浮框本体加左侧叠放窄卡一起构成对话框，Tab 在它们内部循环，不落到画布上。 */
+  function dialogFocusables() {
+    const list = [];
+    if (!rail.hidden) for (const card of rail.querySelectorAll("button")) if (card.offsetParent !== null) list.push(card);
+    for (const item of el.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])")) {
+      if (item.offsetParent !== null) list.push(item);
+    }
+    return list;
+  }
+
+  /** @param {KeyboardEvent} event */
+  function trapTab(event) {
+    if (event.key !== "Tab" || !open) return;
+    const list = dialogFocusables();
+    if (!list.length) return;
+    const active = document.activeElement;
+    const first = list[0];
+    const lastItem = list[list.length - 1];
+    if (event.shiftKey && (active === first || active === el)) {
+      event.preventDefault();
+      lastItem.focus();
+    } else if (!event.shiftKey && (active === lastItem || active === rail)) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   closeBtn.addEventListener("click", (event) => {
     event.stopPropagation();
     close();
@@ -52,6 +81,7 @@ export function createPopover({ el, onClose, onAction, onBack }) {
       }
       close();
     }
+    trapTab(event);
   });
 
   // 窄卡在浮框左侧的叠放栏里，点击其中一张即回退到那一层。
@@ -65,6 +95,7 @@ export function createPopover({ el, onClose, onAction, onBack }) {
     event.stopPropagation();
     onBack?.(Number(card.dataset.stackIndex));
   });
+  rail.addEventListener("keydown", trapTab);
 
   actionsEl.addEventListener("click", (event) => {
     const btn = event.target.closest("[data-action]");
@@ -159,6 +190,7 @@ export function createPopover({ el, onClose, onAction, onBack }) {
     actionsEl.hidden = !options.actions;
     el.hidden = false;
     open = true;
+    el.setAttribute("aria-modal", "true");
     returnFocusTo = options.returnFocus ?? returnFocusTo;
     if (!options.keepPosition) {
       manual = null;
@@ -339,6 +371,7 @@ export function createPopover({ el, onClose, onAction, onBack }) {
     verdictCard = false;
     clearStack();
     el.classList.remove("is-open");
+    el.setAttribute("aria-modal", "false");
     el.hidden = true;
     const target = returnFocusTo;
     returnFocusTo = null;

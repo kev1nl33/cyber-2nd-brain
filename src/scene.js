@@ -110,6 +110,8 @@ export function edgePath(a, b, kind) {
 
 export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onActivate, onHoverChange }) {
   const edgeGroup = edgesSvg.querySelector("#edge-group");
+  // 每帧都要用的连线锚，建场景时查一次，不在 frame() 里反复 querySelector。
+  const connectorEl = edgesSvg.querySelector("#popover-connector-path");
   /** @type {Map<string, any>} */
   const rendered = new Map();
   /** @type {Map<string, any>} */
@@ -291,7 +293,7 @@ let pendingGrow = null;
         rendered.set(id, view);
         if (!collapsing && !instant) {
           view.el.classList.add("is-entering");
-          requestAnimationFrame(() => view.el.classList.remove("is-entering"));
+          view.enterRaf = requestAnimationFrame(() => view.el.classList.remove("is-entering"));
         }
       }
       if (view.exiting) {
@@ -335,7 +337,7 @@ let pendingGrow = null;
     applyStates();
   }
 
-  /** 新子节点沿连线长出：连线先描，节点随后，同层错开。 */
+  /** 新子节点沿连线长出：连线先描，节点随后，同层错开。定时器挂在视图上，节点/连线被移除时一并清掉。 */
   function growIn(previous) {
     const plan = growPlan(previous, placements, edges);
     if (!plan.nodes.length) return;
@@ -346,7 +348,7 @@ let pendingGrow = null;
       view.g.style.setProperty("--grow-delay", `${item.delay}ms`);
       view.g.classList.add("is-growing");
       if (reduce) view.g.classList.remove("is-growing");
-      else window.setTimeout(() => view.g.classList.remove("is-growing"), item.delay + GROW_EDGE_MS);
+      else (view.growTimers ??= []).push(window.setTimeout(() => view.g.classList.remove("is-growing"), item.delay + GROW_EDGE_MS));
     }
     for (const item of plan.nodes) {
       const view = rendered.get(item.id);
@@ -354,7 +356,7 @@ let pendingGrow = null;
       view.el.style.setProperty("--grow-delay", `${item.nodeDelay}ms`);
       view.el.classList.add("is-growing");
       if (reduce) view.el.classList.remove("is-growing");
-      else window.setTimeout(() => view.el.classList.remove("is-growing"), item.nodeDelay + GROW_NODE_MS);
+      else (view.el.growTimers ??= []).push(window.setTimeout(() => view.el.classList.remove("is-growing"), item.nodeDelay + GROW_NODE_MS));
     }
   }
 
@@ -365,6 +367,8 @@ let pendingGrow = null;
 
   function removeNode(id, view) {
     clearTimeout(view.removeTimer);
+    cancelAnimationFrame(view.enterRaf);
+    for (const timer of view.el.growTimers || []) clearTimeout(timer);
     view.el.remove();
     rendered.delete(id);
   }
@@ -377,6 +381,7 @@ let pendingGrow = null;
     const keep = new Set(edges.map((e) => e.id));
     for (const [id, view] of edgeViews) {
       if (keep.has(id)) continue;
+      for (const timer of view.growTimers || []) clearTimeout(timer);
       view.g.remove();
       view.tag?.remove();
       edgeViews.delete(id);
@@ -534,11 +539,13 @@ let pendingGrow = null;
     connector = link;
   }
 
-  /** 只改 core 节点的亮度变量，不写任何日期或内容到画面上。 */
+  /** 只改 core 节点的亮度变量，不写任何日期或内容到画面上。字符串没变就不碰 style。 */
   function applyCoreBreath() {
     const level = coreBrightness(recencyDays, breatheElapsed, { breathe: !instant }).toFixed(3);
     for (const [, view] of rendered) {
       if (view.placement.node.type !== "core") continue;
+      if (view.breatheLevel === level) continue;
+      view.breatheLevel = level;
       view.el.style.setProperty("--breathe", level);
     }
   }
@@ -577,13 +584,27 @@ let pendingGrow = null;
       const px = artPx(p, view.cur.size);
       view.screen = screen;
       view.radius = (px / 2) * (ANCHOR[p.node.type] ?? 0.6);
-      view.el.style.setProperty("--x", `${screen.x.toFixed(1)}px`);
-      view.el.style.setProperty("--y", `${screen.y.toFixed(1)}px`);
-      view.el.style.transform = `translate3d(${screen.x.toFixed(1)}px, ${screen.y.toFixed(
-        1
-      )}px, 0) translate(-50%, -50%)`;
-      view.el.style.setProperty("--art", `${px.toFixed(1)}px`);
-      view.el.style.zIndex = String(10 + p.z * 10 + (view.id === selection.selectedId ? 20 : 0));
+      // 画布静止时同一帧反复写相同字符串没有意义，按值缓存跳过 style 写入。
+      view.applied ??= { transform: null, art: null, z: null };
+      const x = screen.x.toFixed(1);
+      const y = screen.y.toFixed(1);
+      const transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
+      if (transform !== view.applied.transform) {
+        view.applied.transform = transform;
+        view.el.style.setProperty("--x", `${x}px`);
+        view.el.style.setProperty("--y", `${y}px`);
+        view.el.style.transform = transform;
+      }
+      const art = `${px.toFixed(1)}px`;
+      if (art !== view.applied.art) {
+        view.applied.art = art;
+        view.el.style.setProperty("--art", art);
+      }
+      const z = String(10 + p.z * 10 + (view.id === selection.selectedId ? 20 : 0));
+      if (z !== view.applied.z) {
+        view.applied.z = z;
+        view.el.style.zIndex = z;
+      }
     }
 
     for (const [, view] of edgeViews) {
@@ -591,27 +612,33 @@ let pendingGrow = null;
       const b = rendered.get(view.edge.to);
       if (!a?.screen || !b?.screen) continue;
       const d = edgePath(a, b, view.edge.kind);
-      view.line.setAttribute("d", d.path);
-      view.flow.setAttribute("d", d.path);
-      view.reveal.setAttribute("d", d.path);
-      // 遮罩以屏幕坐标覆盖整条曲线及箭头，避免默认边界裁掉浅弧。
-      const pad = Math.hypot(b.screen.x - a.screen.x, b.screen.y - a.screen.y) * 0.1 + 20;
-      view.mask.setAttribute("x", String(Math.min(a.screen.x, b.screen.x) - pad));
-      view.mask.setAttribute("y", String(Math.min(a.screen.y, b.screen.y) - pad));
-      view.mask.setAttribute("width", String(Math.abs(b.screen.x - a.screen.x) + pad * 2));
-      view.mask.setAttribute("height", String(Math.abs(b.screen.y - a.screen.y) + pad * 2));
+      // 路径没变时遮罩框、中点标签位置都不会变，整段跳过。
+      if (d.path !== view.appliedPath) {
+        view.appliedPath = d.path;
+        view.line.setAttribute("d", d.path);
+        view.flow.setAttribute("d", d.path);
+        view.reveal.setAttribute("d", d.path);
+        // 遮罩以屏幕坐标覆盖整条曲线及箭头，避免默认边界裁掉浅弧。
+        const pad = Math.hypot(b.screen.x - a.screen.x, b.screen.y - a.screen.y) * 0.1 + 20;
+        view.mask.setAttribute("x", String(Math.min(a.screen.x, b.screen.x) - pad));
+        view.mask.setAttribute("y", String(Math.min(a.screen.y, b.screen.y) - pad));
+        view.mask.setAttribute("width", String(Math.abs(b.screen.x - a.screen.x) + pad * 2));
+        view.mask.setAttribute("height", String(Math.abs(b.screen.y - a.screen.y) + pad * 2));
+        if (view.tag) view.tag.style.transform = `translate3d(${d.mid.x.toFixed(1)}px, ${d.mid.y.toFixed(1)}px, 0)`;
+      }
       if (view.g.classList.contains("is-growing")) {
         const length = view.line.getTotalLength();
         view.g.style.setProperty("--edge-length", String(Math.max(0.1, length)));
       }
       if (view.tag) {
         const visible = view.g.classList.contains("is-active");
-        view.tag.classList.toggle("is-visible", visible);
-        view.tag.style.transform = `translate3d(${d.mid.x.toFixed(1)}px, ${d.mid.y.toFixed(1)}px, 0)`;
+        if (view.tagShown !== visible) {
+          view.tagShown = visible;
+          view.tag.classList.toggle("is-visible", visible);
+        }
       }
     }
 
-    const connectorEl = edgesSvg.querySelector("#popover-connector-path");
     if (connectorEl) {
       if (connector) {
         const { from, to } = connector;

@@ -294,6 +294,15 @@ function scatter(star, rng, placed) {
     marks.set(star.key, { kind: "field", patternId: null, lesson: null, star, el, nx: star.x, ny: star.y });
   }
 
+  /** id → 标记，建好后不再变。按 marks 的值序首条优先，与原先逐帧线性扫描的
+   *  首匹配完全一致（含极小概率 id 撞星座 key 的退化情形）；辅星不可寻址。 */
+  const marksById = new Map();
+  for (const mark of marks.values()) {
+    if (mark.kind === "field") continue;
+    const id = markId(mark);
+    if (id != null && !marksById.has(id)) marksById.set(id, mark);
+  }
+
   let openId = null;
   let hoverPatternId = null;
 
@@ -338,17 +347,23 @@ function scatter(star, rng, placed) {
     return { cx: width / 2, cy: top + padY + innerH / 2, side };
   }
 
-  /** @param {number} nx @param {number} ny */
-  function screenOf(nx, ny) {
-    const box = canvasBox();
+  /** @param {number} nx @param {number} ny @param {{cx:number,cy:number,side:number}} [box] */
+  function screenOf(nx, ny, box = canvasBox()) {
     return { x: box.cx + nx * box.side * 0.5, y: box.cy + ny * box.side * 0.5 };
   }
 
+  /** 星点只随视口与顶底栏高度变化，星表本身不动。上一帧算过的盒没变时，
+   *  transform 串与星座线必然逐字节相同，整轮重写可以安全跳过。 */
+  let laidOutBox = { cx: Number.NaN, cy: Number.NaN, side: Number.NaN };
+
   function frame() {
     syncDaily(Date.now());
+    const box = canvasBox();
+    if (box.cx === laidOutBox.cx && box.cy === laidOutBox.cy && box.side === laidOutBox.side) return;
+    laidOutBox = box;
     const positions = new Map();
     for (const [id, mark] of marks) {
-      const point = screenOf(mark.nx, mark.ny);
+      const point = screenOf(mark.nx, mark.ny, box);
       mark.el.style.transform = `translate3d(${point.x.toFixed(1)}px, ${point.y.toFixed(1)}px, 0)`;
       positions.set(id, point);
     }
@@ -417,10 +432,7 @@ function scatter(star, rng, placed) {
 
   /** @param {string} id */
   function findMark(id) {
-    for (const [, mark] of marks) {
-      if (mark.kind !== "field" && markId(mark) === id) return mark;
-    }
-    return null;
+    return marksById.get(id) || null;
   }
 }
 
