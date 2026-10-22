@@ -26,6 +26,8 @@ export function startApp() {
     bottomBar: document.querySelector(".bottom-bar"),
     breadcrumb: document.getElementById("breadcrumb"),
     back: document.getElementById("back-btn"),
+    copy: document.getElementById("copy-link"),
+    copyFallback: document.getElementById("copy-fallback"),
     motion: document.getElementById("motion-toggle"),
     sampleHint: document.getElementById("sample-hint"),
     status: document.getElementById("status-line"),
@@ -725,6 +727,38 @@ export function startApp() {
 
   el.motion.addEventListener("click", () => applyMotion(!state.motion));
 
+  // 视角链接只含 URL 与 hash，不含任何笔记内容。
+  let copyTimer = null;
+  el.copy.addEventListener("click", () => {
+    const link = location.href;
+    clearTimeout(copyTimer);
+    const done = () => {
+      el.copyFallback.hidden = true;
+      el.copy.textContent = "已复制";
+      copyTimer = setTimeout(() => {
+        el.copy.textContent = "复制链接";
+      }, 1500);
+    };
+    const fallback = () => {
+      el.copyFallback.value = link;
+      el.copyFallback.hidden = false;
+      el.copyFallback.focus();
+      el.copyFallback.select();
+    };
+    if (navigator.clipboard?.writeText) {
+      try {
+        navigator.clipboard.writeText(link).then(done, fallback);
+      } catch {
+        fallback();
+      }
+    } else {
+      fallback();
+    }
+  });
+  el.copyFallback.addEventListener("blur", () => {
+    el.copyFallback.hidden = true;
+  });
+
   // 模式卡里点一条经验，换成那条经验的断语卡。
   el.popover.addEventListener("click", (event) => {
     const member = event.target.closest("[data-star]");
@@ -733,6 +767,11 @@ export function startApp() {
 
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      if (!el.copyFallback.hidden) {
+        el.copyFallback.hidden = true;
+        el.copy.focus();
+        return;
+      }
       if (popover.isOpen) return popover.close();
       if (state.route.level !== "overview") navigate(backOneLevel(state.route));
       return;
