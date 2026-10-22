@@ -30,6 +30,15 @@
         <span class="status-line" id="status-line"></span>
         <span class="sample-hint" id="sample-hint" hidden>示例数据</span>
         <button type="button" class="chip" id="motion-toggle" aria-pressed="false">动效 开</button>
+        <button type="button" class="chip" id="copy-link" aria-live="polite">复制链接</button>
+        <input
+          type="text"
+          class="copy-fallback"
+          id="copy-fallback"
+          readonly
+          hidden
+          aria-label="当前视角链接，可手动复制"
+        />
         <button type="button" class="chip chip--back" id="back-btn" hidden>返回上层</button>
       </div>
     </header>

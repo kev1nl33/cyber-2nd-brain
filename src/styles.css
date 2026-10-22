@@ -262,6 +262,33 @@ button {
   line-height: 1;
 }
 
+/* Clipboard blocked: drop a read-only field under the top bar instead of
+   failing. Absolute so the header never reflows. */
+.copy-fallback {
+  position: absolute;
+  top: calc(100% - 6px);
+  right: var(--space-6);
+  width: min(300px, calc(100vw - 2 * var(--space-4)));
+  padding: 5px var(--space-3);
+  border: 1px solid rgba(126, 242, 176, 0.42);
+  background: rgba(10, 24, 20, 0.94);
+  color: var(--green);
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.02em;
+}
+
+.copy-fallback:focus-visible {
+  outline: none;
+  border-color: rgba(126, 242, 176, 0.7);
+}
+
+@media (max-width: 860px) {
+  .copy-fallback {
+    right: var(--space-4);
+  }
+}
+
 .legend {
   display: flex;
   align-items: center;
