@@ -84,6 +84,8 @@ export function startApp() {
       scene.setFlowing(false);
     },
     onAction: handlePopoverAction,
+    // 叠放阅读：点左侧窄卡，或在浮框内按 Esc，逐级退回被压住的那一张。
+    onBack: (index) => retreatStack(index ?? popover.stackDepth - 1),
   });
 
   let layout = null;
@@ -442,6 +444,8 @@ export function startApp() {
     if (action === "open-source" && current) {
       const step = current.type === "step" ? current : graph.step(current.themeId, current.ideaId, current.stepId);
       state.expanded.add(step.id);
+      // 从步骤浮框进入来源：当前浮框压成窄卡叠在左侧，来源浮框叠在上面。
+      state.stackNext = true;
       navigate({
         level: "step",
         themeId: step.themeId,
@@ -452,6 +456,11 @@ export function startApp() {
       return;
     }
     if (action === "back-to-step" && current) {
+      // 叠放着的步骤浮框还在左侧时，直接退回那一张，而不是重新打开一张。
+      if (popover.stackDepth) {
+        retreatStack(popover.stackDepth - 1);
+        return;
+      }
       navigate({
         level: "step",
         themeId: current.themeId,
@@ -484,6 +493,13 @@ export function startApp() {
     pauseReplay();
     replaySelection = false;
     pendingActivation = null;
+    // 回退窄卡时路由要跟着变，但浮框内容已经由窄卡还原，这里不再重建。
+    if (state.stackNext === "keep") {
+      state.stackNext = false;
+      state.route = next;
+      renderChrome();
+      return;
+    }
     const previous = state.route;
     const structuralChange =
       previous.themeId !== next.themeId ||
@@ -527,13 +543,44 @@ export function startApp() {
       const content = lesson ? lessonContent(lesson, node) : pattern ? patternContent(pattern) : inspectorContent(node);
       scene.frame(0); // refresh screen positions so the popover can place itself
       const starId = lesson?.id || pattern?.id || null;
+      // 只有「从步骤浮框点来源」这一下才叠放；换主题、换步骤都会清掉窄卡。
+      const stack = Boolean(state.stackNext);
+      state.stackNext = false;
+      if (!stack) popover.clearStack();
       popover.show({
         ...content,
+        stack,
         anchor: starId ? stars.anchorOf(starId) : anchorOf(node.id),
         avoid: starId ? [] : avoidPoints(node.id),
         returnFocus: starId ? stars.starElement(starId) : scene.nodeElement(node.id),
       });
     }
+  }
+
+  /**
+   * 叠放阅读的回退：窄卡按从旧到新排列，点第 index 张就把路由退到那一层，
+   * 浮框内容由窄卡还原，不重新生成。
+   * @param {number} index
+   */
+  function retreatStack(index) {
+    const steps = popover.stackDepth - index;
+    if (steps < 1) return;
+    let route = state.route;
+    for (let i = 0; i < steps; i += 1) route = backOneLevel(route);
+    if (!popover.restoreStack(index)) return;
+    state.route = route;
+    const hash = buildHash(route);
+    if (hash !== (location.hash || "#/")) {
+      state.stackNext = "keep";
+      location.hash = hash;
+    }
+    const node = route.sourceId
+      ? graph.nodes.get(`source:${route.themeId}/${route.ideaId}/${route.stepId}/${route.sourceId}`)
+      : graph.step(route.themeId, route.ideaId, route.stepId);
+    if (!node) return;
+    state.selectedId = node.id;
+    state.popover = { nodeId: node.id, mode: route.sourceId ? "source" : "node" };
+    applySelection();
   }
 
   /** Screen centres of the other visible nodes, so the popover can dodge them. */
@@ -929,6 +976,8 @@ export function startApp() {
         el.copy.focus();
         return;
       }
+      // 叠放阅读：有被压住的浮框时逐级回退，退完最后一张才关闭。
+      if (popover.isOpen && popover.stackDepth) return retreatStack(popover.stackDepth - 1);
       if (popover.isOpen) return popover.close();
       if (state.route.level !== "overview") navigate(backOneLevel(state.route));
       return;
