@@ -207,6 +207,10 @@ export function startApp() {
       if (!state.expanded.has(step.id)) continue;
       for (const source of graph.sources(step.id)) nodeIds.add(source.id);
     }
+    // The chain ends on the idea's conclusion; keep it lit together with the
+    // edge from the last step (picked up by the node-pair scan below).
+    const conclusion = graph.conclusion(themeId, ideaId);
+    if (conclusion) nodeIds.add(conclusion.id);
 
     const edgeIds = new Set();
     for (const edge of graph.edges) {
