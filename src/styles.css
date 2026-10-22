@@ -697,6 +697,32 @@ button {
   color: var(--text-faint);
 }
 
+/* ------------------------------------------------------- zoom level detail */
+
+/* 缩放分级：远景只留主题名，中景出问题文字，近景出步骤文字。
+   只动透明度，光团本身不参与。已选路径、打开的浮框和定位到的节点带
+   is-lod-keep，它们的文字始终保留。 */
+.node-kicker,
+.node-title,
+.node-note {
+  transition: opacity 200ms ease;
+}
+
+.app.lod-far .node[data-type="idea"] .node-label > *,
+.app.lod-far .node[data-type="step"] .node-label > *,
+.app.lod-far .node[data-type="source"] .node-label > *,
+.app.lod-far .node[data-type="conclusion"] .node-label > *,
+.app.lod-mid .node[data-type="step"] .node-label > *,
+.app.lod-mid .node[data-type="source"] .node-label > *,
+.app.lod-mid .node[data-type="conclusion"] .node-label > * {
+  opacity: 0;
+}
+
+.app.lod-far .node.is-lod-keep .node-label > *,
+.app.lod-mid .node.is-lod-keep .node-label > * {
+  opacity: 1;
+}
+
 /* type-specific typography and brightness */
 
 .node[data-type="core"] .node-title {
@@ -1513,6 +1539,20 @@ button {
 .app[data-motion="off"] .intro-caption {
   animation: none !important;
   transition: none !important;
+}
+
+.app[data-motion="off"] .node-kicker,
+.app[data-motion="off"] .node-title,
+.app[data-motion="off"] .node-note {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node-kicker,
+  .node-title,
+  .node-note {
+    transition: none;
+  }
 }
 
 /* ------------------------------------------------------------- responsive */
