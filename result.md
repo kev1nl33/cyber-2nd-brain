@@ -3,7 +3,7 @@
 基线：`main` @ `24f62f8`（Merge integration/night-1022）。全部合并在分支 `integration/night-1022b` 上完成，
 未切换分支、未合并到 `main`、未推送、未部署、未触碰 R2 与 `private-data/`。
 
-最终提交：`2ebd00d`（`2ebd00dc2509f2e684e080492ef32c1c65b2d445`）
+最终提交：`5523ee2`（`5523ee2481efff684120dbedde053d0a14ca1965`）
 
 ## 合并顺序
 
@@ -19,7 +19,7 @@
 | 8 | feat/depth-parallax (`80fa232`) | `518c7ca` | 无，自动合并 |
 | 9 | feat/zoom-lod (`f187186`) | `a3a75ba` | `src/app.js` 1 处 |
 
-另有一个普通提交 `2ebd00d`：把全部新测试接入 `scripts/check.mjs`，并在 README 补上这批功能。
+另有两个普通提交：`2ebd00d` 把全部新测试接入 `scripts/check.mjs` 并在 README 补上这批功能；`5523ee2` 记录本集成结果。
 
 ## 冲突解法
 
