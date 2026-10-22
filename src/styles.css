@@ -1309,6 +1309,12 @@ button {
   transition: none !important;
 }
 
+.app[data-motion="off"] .star.is-daily::after {
+  animation: none !important;
+  opacity: 0.42;
+  transform: scale(1);
+}
+
 .app[data-motion="off"] .node,
 .app[data-motion="off"] .brain-spark,
 .app[data-motion="off"] .glyph-halo,
@@ -1512,6 +1518,15 @@ button {
   box-shadow: 0 0 7px rgba(246, 232, 198, 0.55);
 }
 
+/* 今日一星悬停时保持品牌绿，只放大，不被暖色盖掉。 */
+.star.is-daily:hover .star-glyph,
+.star.is-daily:focus-visible .star-glyph,
+.star.is-daily.is-hot .star-glyph,
+.star.is-daily.is-open .star-glyph {
+  background: var(--green);
+  box-shadow: 0 0 10px rgba(126, 242, 176, 0.72);
+}
+
 .star--pattern:hover .star-glyph,
 .star--pattern:focus-visible .star-glyph,
 .star--pattern.is-hot .star-glyph,
@@ -1519,6 +1534,41 @@ button {
   background: rgba(250, 238, 210, 0.96);
   transform: translate(-50%, -50%) scale(1.5);
   box-shadow: 0 0 12px rgba(246, 232, 198, 0.6);
+}
+
+/* 今日一星：当天由日期种子选出的那条经验，换成品牌绿。
+   呼吸只做在极淡的外圈光环上，3 秒一轮，星点本身不动也不闪，
+   这样它和旁边的经验星只有颜色差别，不会抢走链条的注意力。 */
+.star.is-daily .star-glyph {
+  background: var(--green);
+  box-shadow: 0 0 7px rgba(126, 242, 176, 0.55);
+}
+
+.star.is-daily::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px 0 0 -5.5px;
+  border-radius: 50%;
+  border: 1px solid rgba(126, 242, 176, 0.42);
+  animation: dailyBreathe 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes dailyBreathe {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.82);
+  }
+
+  50% {
+    opacity: 0.12;
+    transform: scale(1.3);
+  }
 }
 
 .star:focus-visible {
@@ -1716,6 +1766,12 @@ button {
   .brain-pulse,
   .edge-flow {
     display: none;
+  }
+
+  .star.is-daily::after {
+    animation: none !important;
+    opacity: 0.42;
+    transform: scale(1);
   }
 
   .brain-spark,
