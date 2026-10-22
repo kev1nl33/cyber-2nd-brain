@@ -5,6 +5,7 @@
  */
 import { brainArt } from "./anatomy.js";
 import { conclusionGlyph, ideaGlyph, sourceGlyph, stepGlyph } from "./glyphs.js";
+import { nextLod } from "./lod.js";
 import { hashString } from "./random.js";
 
 /** Lower bounds so a node never collapses into an unclickable dot. */
@@ -34,7 +35,7 @@ const ANCHOR = {
 
 const EASE_TAU = 0.17;
 
-export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivate, onHoverChange }) {
+export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onActivate, onHoverChange }) {
   const edgeGroup = edgesSvg.querySelector("#edge-group");
   /** @type {Map<string, any>} */
   const rendered = new Map();
@@ -50,6 +51,10 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
   let focusPath = null;
   /** 弹窗开着才流动；弹窗关闭后链的高亮保留，光点停止。 */
   let flowing = false;
+  /** 当前路径定位到的节点：键盘或 URL 落到这里时，它的文字不跟着缩放隐藏。 */
+  let locatedId = null;
+  /** 当前缩放档位，带滞回：相机在阈值附近来回漂时不重复切换。 */
+  let lod = null;
   let hoverId = null;
   let hoverTimer = null;
   let hoverSuspended = false;
@@ -310,6 +315,8 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
         : "idle";
       el.classList.toggle("is-hover-dim", Boolean(neighborhood && !neighborhood.has(id)));
       el.classList.toggle("is-off-path", Boolean(focusPath) && !focusPath.nodeIds.has(id));
+      // 选中路径上的节点、浮框挂着的节点、键盘或 URL 定位到的节点始终留着文字。
+      el.classList.toggle("is-lod-keep", inPath || id === locatedId);
       if (isSelected) el.setAttribute("aria-current", "true");
       else el.removeAttribute("aria-current");
     }
@@ -370,6 +377,27 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
     applyStates();
   }
 
+  /**
+   * 键盘或 URL 定位到的节点。它未必在选中路径上（主题层、问题层不选中节点），
+   * 但用户刚刚跳到它，文字必须可见。
+   * @param {string|null} id
+   */
+  function setLocated(id) {
+    locatedId = id || null;
+    applyStates();
+  }
+
+  /** 按相机当前缩放切档，档位没变就不动 DOM。 */
+  function syncLod() {
+    const next = nextLod(camera.current.scale, lod);
+    if (next === lod) return;
+    lod = next;
+    if (!root) return;
+    root.classList.toggle("lod-far", next === "far");
+    root.classList.toggle("lod-mid", next === "mid");
+    root.classList.toggle("lod-near", next === "near");
+  }
+
   function pulse() {
     if (instant) return;
     for (const [id, view] of edgeViews) {
@@ -387,6 +415,7 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
 
   function frame(dt) {
     let busy = camera.step(dt);
+    syncLod();
     const k = instant ? 1 : 1 - Math.exp(-dt / EASE_TAU);
     const now = performance.now();
 
@@ -487,6 +516,7 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
     clearFlashes,
     setFlowing,
     setFocusPath,
+    setLocated,
     setConnector,
     frame,
     setInstant(value) {

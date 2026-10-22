@@ -58,6 +58,7 @@ export function startApp() {
   const camera = createCamera();
   const background = createBackground({ canvas: el.bg });
   const scene = createScene({
+    root: el.app,
     nodesLayer: el.nodes,
     edgesSvg: el.edges,
     tagsLayer: el.tags,
@@ -519,6 +520,8 @@ export function startApp() {
 
     render({ refit: structuralChange || force, collapse: structuralChange });
     replay.syncSelected(state.selectedId);
+    // 路由本身就是一次定位：URL 或键盘跳到的那一层，目标节点的文字不能被缩放藏掉。
+    scene.setLocated(locatedNodeId(route));
 
     if (state.popover) {
       const node = state.popover.nodeId ? graph.nodes.get(state.popover.nodeId) : null;
@@ -534,6 +537,23 @@ export function startApp() {
         returnFocus: starId ? stars.starElement(starId) : scene.nodeElement(node.id),
       });
     }
+  }
+
+  /**
+   * 当前路由定位到的节点。步骤层选中的是步骤或来源，主题层和问题层没有选中态，
+   * 但用户是跳到这一层来的，所以目标节点的文字始终显示。
+   * @param {{ level: string, themeId?: string, ideaId?: string, stepId?: string, sourceId?: string }} route
+   */
+  function locatedNodeId(route) {
+    if (route.level === "theme") return graph.theme(route.themeId)?.id || null;
+    if (route.level === "idea") return graph.idea(route.themeId, route.ideaId)?.id || null;
+    if (route.level === "step") {
+      if (route.sourceId) {
+        return `source:${route.themeId}/${route.ideaId}/${route.stepId}/${route.sourceId}`;
+      }
+      return graph.step(route.themeId, route.ideaId, route.stepId)?.id || null;
+    }
+    return null;
   }
 
   /** Screen centres of the other visible nodes, so the popover can dodge them. */
