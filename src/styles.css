@@ -92,6 +92,59 @@ button {
   background: linear-gradient(0deg, rgba(4, 9, 10, 0.88) 0%, rgba(4, 9, 10, 0) 100%);
 }
 
+/* 时间条占底栏上沿，浮框通过 --inset-bottom 避让。 */
+.replay {
+  position: absolute;
+  bottom: 100%;
+  left: 24px;
+  right: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #7ef2b0;
+  background: rgba(4, 9, 10, 0.92);
+  border-top: 1px solid rgba(126, 242, 176, 0.2);
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.replay-play {
+  flex: 0 0 36px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: none;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.replay-play:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.replay-range {
+  flex: 1;
+  min-width: 0;
+  height: 20px;
+  margin: 0;
+  accent-color: #7ef2b0;
+  cursor: ew-resize;
+}
+
+.replay-date {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.replay :focus-visible {
+  outline: 1px solid #7ef2b0;
+  outline-offset: 1px;
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -209,6 +262,33 @@ button {
   line-height: 1;
 }
 
+/* Clipboard blocked: drop a read-only field under the top bar instead of
+   failing. Absolute so the header never reflows. */
+.copy-fallback {
+  position: absolute;
+  top: calc(100% - 6px);
+  right: var(--space-6);
+  width: min(300px, calc(100vw - 2 * var(--space-4)));
+  padding: 5px var(--space-3);
+  border: 1px solid rgba(126, 242, 176, 0.42);
+  background: rgba(10, 24, 20, 0.94);
+  color: var(--green);
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.02em;
+}
+
+.copy-fallback:focus-visible {
+  outline: none;
+  border-color: rgba(126, 242, 176, 0.7);
+}
+
+@media (max-width: 860px) {
+  .copy-fallback {
+    right: var(--space-4);
+  }
+}
+
 .legend {
   display: flex;
   align-items: center;
@@ -298,7 +378,7 @@ button {
 }
 
 .edge {
-  transition: opacity 0.26s ease;
+  transition: opacity 0.2s ease;
 }
 
 .edge--core-theme .edge-line {
@@ -340,13 +420,11 @@ button {
   opacity: 0.26;
 }
 
-.edge.is-active .edge-line,
-.edge.is-hover .edge-line {
+.edge.is-active .edge-line {
   stroke: rgba(205, 255, 226, 0.82);
 }
 
-.edge--inferred.is-active .edge-line,
-.edge--inferred.is-hover .edge-line {
+.edge--inferred.is-active .edge-line {
   stroke: rgba(158, 234, 244, 0.9);
 }
 
@@ -366,7 +444,8 @@ button {
 }
 
 /* Click highlight flashes the base line only, so it never restarts the loop on .edge-flow. */
-.edge.is-pulsing .edge-line {
+.edge.is-pulsing .edge-line,
+.edge.is-replay-flash .edge-line {
   animation: edgeFlash 0.9s ease-out 1;
 }
 
@@ -446,6 +525,7 @@ button {
   pointer-events: auto;
   cursor: pointer;
   --brain: 1;
+  transition: opacity 0.2s ease;
 }
 
 .node-art {
@@ -697,12 +777,9 @@ button {
   color: #f2fff8;
 }
 
-.node.is-hover {
-  --brain: 1;
-}
-
-.node.is-hover .node-art {
-  filter: drop-shadow(0 0 5px var(--green-mid));
+.node.is-hover-dim,
+.edge.is-hover-dim {
+  opacity: 0.25;
 }
 
 .node.is-entering .node-art,
@@ -717,6 +794,15 @@ button {
 
 .node.is-exiting {
   --brain: 0;
+}
+
+/* --------------------------------------------------------------- focus mode */
+
+/* F 键聚焦：当前路径以外的节点、连线和连线标签降到 0.1，200ms 过渡。 */
+.app.is-focus-mode .node.is-off-path,
+.app.is-focus-mode .edge.is-off-path,
+.app.is-focus-mode .edge-tag.is-off-path.is-visible {
+  opacity: 0.1;
 }
 
 /* --------------------------------------------------------------- brain art */
@@ -1722,7 +1808,8 @@ button {
   .glyph-halo,
   .intro-brain,
   .intro-caption,
-  .edge.is-pulsing .edge-line {
+  .edge.is-pulsing .edge-line,
+  .edge.is-replay-flash .edge-line {
     animation: none !important;
   }
 }

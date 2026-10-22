@@ -46,10 +46,18 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
   let instant = false;
   let collapseUntil = 0;
   let selection = { selectedId: null, nodeIds: new Set(), edgeIds: new Set(), focusChain: false };
+  /** 聚焦模式下要保留原亮度的当前路径；null 表示没开聚焦。 */
+  let focusPath = null;
   /** 弹窗开着才流动；弹窗关闭后链的高亮保留，光点停止。 */
   let flowing = false;
   let hoverId = null;
+  let hoverTimer = null;
+  let hoverSuspended = false;
+  const noHover = window.matchMedia("(hover: none)");
+  const neighbors = new Map();
   let connector = null;
+
+  noHover.addEventListener("change", () => clearHover());
 
   function artMarkup(placement) {
     const { node, detail, role } = placement;
@@ -126,12 +134,29 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
       event.stopPropagation();
       onActivate(placement.id, el);
     });
-    el.addEventListener("pointerenter", () => setHover(placement.id));
-    el.addEventListener("pointerleave", () => setHover(null));
-    el.addEventListener("focus", () => setHover(placement.id));
-    el.addEventListener("blur", () => setHover(null));
+    el.addEventListener("pointerenter", (event) => {
+      clearHover();
+      if (noHover.matches || event.pointerType === "touch" || event.buttons || hoverSuspended || selection.selectedId) return;
+      hoverTimer = setTimeout(() => {
+        hoverTimer = null;
+        if (hoverSuspended || noHover.matches || selection.selectedId || !placements.has(placement.id)) return;
+        setHover(placement.id);
+      }, 120);
+    });
+    el.addEventListener("pointerleave", clearHover);
     nodesLayer.appendChild(el);
     return el;
+  }
+
+  function clearHover() {
+    clearTimeout(hoverTimer);
+    hoverTimer = null;
+    setHover(null);
+  }
+
+  function setHoverSuspended(value) {
+    hoverSuspended = Boolean(value);
+    if (hoverSuspended) clearHover();
   }
 
   function setHover(id) {
@@ -151,8 +176,15 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
     const oldCenter = centerOf(previous);
     const newCenter = centerOf(layout.placements);
     if (collapsing) collapseUntil = performance.now() + 340;
+    clearHover();
     placements = layout.placements;
     edges = graphEdges.filter((e) => placements.has(e.from) && placements.has(e.to));
+    neighbors.clear();
+    for (const id of placements.keys()) neighbors.set(id, new Set([id]));
+    for (const edge of edges) {
+      neighbors.get(edge.from).add(edge.to);
+      neighbors.get(edge.to).add(edge.from);
+    }
 
     for (const [id, placement] of placements) {
       let view = rendered.get(id);
@@ -264,6 +296,7 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
 
   function applyStates() {
     const { selectedId, nodeIds, edgeIds, focusChain } = selection;
+    const neighborhood = !selectedId && hoverId ? neighbors.get(hoverId) : null;
     for (const [id, view] of rendered) {
       const el = view.el;
       const isSelected = id === selectedId;
@@ -275,18 +308,23 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
         : focusChain || view.placement.dim
         ? "dim"
         : "idle";
-      el.classList.toggle("is-hover", id === hoverId);
+      el.classList.toggle("is-hover-dim", Boolean(neighborhood && !neighborhood.has(id)));
+      el.classList.toggle("is-off-path", Boolean(focusPath) && !focusPath.nodeIds.has(id));
       if (isSelected) el.setAttribute("aria-current", "true");
       else el.removeAttribute("aria-current");
     }
     for (const [id, view] of edgeViews) {
       const active = edgeIds.has(id);
-      const touchesHover = hoverId && (view.edge.from === hoverId || view.edge.to === hoverId);
+      view.g.classList.toggle(
+        "is-hover-dim",
+        Boolean(neighborhood && !(neighborhood.has(view.edge.from) && neighborhood.has(view.edge.to)))
+      );
       view.g.classList.toggle("is-active", Boolean(active));
       view.g.classList.toggle("is-flowing", Boolean(active) && flowing);
       if (!active || !flowing) view.g.classList.remove("is-pulsing");
-      view.g.classList.toggle("is-hover", Boolean(touchesHover));
-      view.g.classList.toggle("is-dim", Boolean(focusChain && !active && !touchesHover));
+      view.g.classList.toggle("is-dim", Boolean(focusChain && !active));
+      view.g.classList.toggle("is-off-path", Boolean(focusPath) && !focusPath.edgeIds.has(id));
+      view.tag?.classList.toggle("is-off-path", Boolean(focusPath) && !focusPath.edgeIds.has(id));
     }
   }
 
@@ -298,12 +336,37 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
       edgeIds: new Set(next.edgeIds || []),
       focusChain: Boolean(next.focusChain),
     };
+    if (selection.selectedId) clearHover();
     applyStates();
-    pulse();
+    if (next.pulse !== false) pulse();
+  }
+
+  function clearFlashes() {
+    for (const [, view] of edgeViews) view.g.classList.remove("is-replay-flash");
+  }
+
+  function flashEdges(ids) {
+    clearFlashes();
+    if (instant) return;
+    for (const id of ids) {
+      const view = edgeViews.get(id);
+      if (!view) continue;
+      void view.g.getBoundingClientRect();
+      view.g.classList.add("is-replay-flash");
+    }
   }
 
   function setFlowing(value) {
     flowing = Boolean(value);
+    applyStates();
+  }
+
+  /**
+   * 聚焦模式：路径内的节点和连线保持原亮度，其余由 CSS 压到 0.1。
+   * @param {{ nodeIds: Set<string>, edgeIds: Set<string> }|null} next
+   */
+  function setFocusPath(next) {
+    focusPath = next || null;
     applyStates();
   }
 
@@ -363,7 +426,7 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
       view.line.setAttribute("d", d.path);
       view.flow.setAttribute("d", d.path);
       if (view.tag) {
-        const visible = view.g.classList.contains("is-active") || view.g.classList.contains("is-hover");
+        const visible = view.g.classList.contains("is-active");
         view.tag.classList.toggle("is-visible", visible);
         view.tag.style.transform = `translate3d(${d.mid.x.toFixed(1)}px, ${d.mid.y.toFixed(1)}px, 0)`;
       }
@@ -419,7 +482,11 @@ export function createScene({ nodesLayer, edgesSvg, tagsLayer, camera, onActivat
     setLayout,
     isCollapsing,
     setSelection,
+    setHoverSuspended,
+    flashEdges,
+    clearFlashes,
     setFlowing,
+    setFocusPath,
     setConnector,
     frame,
     setInstant(value) {

@@ -12,6 +12,7 @@ import { createPopover } from "./popover.js";
 import { backOneLevel, buildHash, parseHash } from "./route.js";
 import { createScene } from "./scene.js";
 import { createStars } from "./stars.js";
+import { createReplay } from "./replay.js";
 
 export function startApp() {
   const el = {
@@ -26,6 +27,8 @@ export function startApp() {
     bottomBar: document.querySelector(".bottom-bar"),
     breadcrumb: document.getElementById("breadcrumb"),
     back: document.getElementById("back-btn"),
+    copy: document.getElementById("copy-link"),
+    copyFallback: document.getElementById("copy-fallback"),
     motion: document.getElementById("motion-toggle"),
     sampleHint: document.getElementById("sample-hint"),
     status: document.getElementById("status-line"),
@@ -41,12 +44,14 @@ export function startApp() {
   const graph = loadGraph();
   if (graph.usingSample) el.sampleHint.hidden = false;
 
-  const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const prefersReduced = motionPreference.matches;
   const state = {
     route: normalizeRoute(parseHash(location.hash), graph),
     selectedId: null,
     expanded: new Set(),
     popover: null,
+    focusMode: false,
     motion: !prefersReduced,
   };
 
@@ -83,6 +88,28 @@ export function startApp() {
 
   let layout = null;
   let pendingActivation = null;
+  let replaySelection = false;
+  const replay = createReplay({ host: el.bottomBar, onSelect: selectReplayStep });
+
+  function selectReplayStep(step, played) {
+    replaySelection = true;
+    state.selectedId = step.id;
+    if (state.popover && !state.popover.lessonId && !state.popover.patternId) {
+      openInspector(step, { keepPosition: true });
+    } else {
+      applySelection();
+    }
+    const route = { level: "step", themeId: step.themeId, ideaId: step.ideaId, stepId: step.stepId };
+    state.route = route;
+    history.replaceState(null, "", buildHash(route));
+    renderChrome();
+    if (played) scene.flashEdges(graph.edgesInto(step.id).map((edge) => edge.id));
+  }
+
+  function pauseReplay() {
+    replay.pause();
+    scene.clearFlashes();
+  }
 
   applyMotion(state.motion, { silent: true });
   measureInsets();
@@ -101,12 +128,18 @@ export function startApp() {
 
   function render({ refit = false, instantCamera = false, collapse = false } = {}) {
     const rect = el.stage.getBoundingClientRect();
+    const { level, themeId, ideaId } = state.route;
+    replay.setContext(
+      level === "idea" || level === "step" ? `${themeId}/${ideaId}` : null,
+      ideaId ? graph.steps(themeId, ideaId) : []
+    );
+    measureInsets();
     camera.setArea({
       width: rect.width,
       height: rect.height,
       insets: {
         top: el.topBar.offsetHeight + 14,
-        bottom: el.bottomBar.offsetHeight + 14,
+        bottom: el.bottomBar.offsetHeight + (replay.steps.length ? 24 : 0) + 14,
         left: 18,
         right: 18,
       },
@@ -131,6 +164,7 @@ export function startApp() {
       if (instantCamera) camera.snap();
     }
     applySelection();
+    syncFocus();
     renderChrome();
   }
 
@@ -139,8 +173,22 @@ export function startApp() {
   }
 
   function applySelection() {
-    scene.setFlowing(Boolean(state.popover));
+    scene.setFlowing(Boolean(state.popover) && !replaySelection);
     const selected = state.selectedId ? graph.nodes.get(state.selectedId) : null;
+    if (replaySelection && selected?.type === "step") {
+      const nodeIds = replay.steps.slice(0, replay.index + 1).map((step) => step.id);
+      const idea = graph.idea(selected.themeId, selected.ideaId);
+      if (idea) nodeIds.push(idea.id);
+      const visited = new Set(nodeIds);
+      scene.setSelection({
+        selectedId: selected.id,
+        nodeIds,
+        edgeIds: graph.edges.filter((edge) => visited.has(edge.from) && visited.has(edge.to)).map((edge) => edge.id),
+        focusChain: true,
+        pulse: false,
+      });
+      return;
+    }
     if (!selected) {
       scene.setSelection({ selectedId: null });
       return;
@@ -189,6 +237,48 @@ export function startApp() {
     });
   }
 
+  /**
+   * 聚焦模式的当前路径：当前问题、它的整条步骤链、已展开步骤的来源节点，
+   * 以及连接这些节点的连线。总览和主题层没有当前问题，返回 null。
+   */
+  function focusPath() {
+    const { level, themeId, ideaId } = state.route;
+    if (level !== "idea" && level !== "step") return null;
+    const idea = graph.idea(themeId, ideaId);
+    if (!idea) return null;
+
+    const nodeIds = new Set([idea.id]);
+    for (const step of graph.steps(themeId, ideaId)) {
+      nodeIds.add(step.id);
+      if (!state.expanded.has(step.id)) continue;
+      for (const source of graph.sources(step.id)) nodeIds.add(source.id);
+    }
+    // The chain ends on the idea's conclusion; keep it lit together with the
+    // edge from the last step (picked up by the node-pair scan below).
+    const conclusion = graph.conclusion(themeId, ideaId);
+    if (conclusion) nodeIds.add(conclusion.id);
+
+    const edgeIds = new Set();
+    for (const edge of graph.edges) {
+      if (nodeIds.has(edge.from) && nodeIds.has(edge.to)) edgeIds.add(edge.id);
+    }
+    return { nodeIds, edgeIds };
+  }
+
+  /** 路径没了（例如回到总览）就自动退出聚焦，状态只由 route 和展开决定。 */
+  function syncFocus() {
+    const path = state.focusMode ? focusPath() : null;
+    if (state.focusMode && !path) state.focusMode = false;
+    el.app.classList.toggle("is-focus-mode", Boolean(path));
+    scene.setFocusPath(path);
+  }
+
+  function toggleFocus() {
+    if (!state.focusMode && !focusPath()) return;
+    state.focusMode = !state.focusMode;
+    syncFocus();
+  }
+
   function renderChrome() {
     const { level, themeId, ideaId, stepId } = state.route;
     const theme = themeId ? graph.theme(themeId) : null;
@@ -223,6 +313,8 @@ export function startApp() {
   // -------------------------------------------------------------- interaction
 
   function activateNode(nodeId, element) {
+    pauseReplay();
+    replaySelection = false;
     if (scene.isCollapsing()) {
       pendingActivation = { nodeId, element };
       return;
@@ -389,6 +481,8 @@ export function startApp() {
   }
 
   function applyRoute(next, { force = false } = {}) {
+    pauseReplay();
+    replaySelection = false;
     pendingActivation = null;
     const previous = state.route;
     const structuralChange =
@@ -424,6 +518,7 @@ export function startApp() {
     }
 
     render({ refit: structuralChange || force, collapse: structuralChange });
+    replay.syncSelected(state.selectedId);
 
     if (state.popover) {
       const node = state.popover.nodeId ? graph.nodes.get(state.popover.nodeId) : null;
@@ -636,11 +731,30 @@ export function startApp() {
   // ------------------------------------------------------------------ gestures
 
   const pointers = new Map();
+  const pressedPointers = new Set();
   let panning = null;
   let pinch = null;
 
+  // 捕获阶段同时覆盖画布和会阻止事件冒泡的浮框。
+  window.addEventListener("pointerdown", (event) => {
+    pressedPointers.add(event.pointerId);
+    scene.setHoverSuspended(true);
+  }, true);
+  const resumeHover = (event) => {
+    pressedPointers.delete(event.pointerId);
+    scene.setHoverSuspended(pressedPointers.size > 0);
+  };
+  window.addEventListener("pointerup", resumeHover, true);
+  window.addEventListener("pointercancel", resumeHover, true);
+  window.addEventListener("blur", () => {
+    pressedPointers.clear();
+    scene.setHoverSuspended(true);
+  });
+  window.addEventListener("focus", () => scene.setHoverSuspended(pressedPointers.size > 0));
+
   el.stage.addEventListener("pointerdown", (event) => {
     if (event.target.closest(".node")) return;
+    pauseReplay();
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pointers.size === 1) {
       panning = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: 0 };
@@ -725,19 +839,91 @@ export function startApp() {
 
   el.motion.addEventListener("click", () => applyMotion(!state.motion));
 
+  // 视角链接只含 URL 与 hash，不含任何笔记内容。
+  let copyTimer = null;
+  el.copy.addEventListener("click", () => {
+    const link = location.href;
+    clearTimeout(copyTimer);
+    const done = () => {
+      el.copyFallback.hidden = true;
+      el.copy.textContent = "已复制";
+      copyTimer = setTimeout(() => {
+        el.copy.textContent = "复制链接";
+      }, 1500);
+    };
+    const fallback = () => {
+      el.copyFallback.value = link;
+      el.copyFallback.hidden = false;
+      el.copyFallback.focus();
+      el.copyFallback.select();
+    };
+    if (navigator.clipboard?.writeText) {
+      try {
+        navigator.clipboard.writeText(link).then(done, fallback);
+      } catch {
+        fallback();
+      }
+    } else {
+      fallback();
+    }
+  });
+  el.copyFallback.addEventListener("blur", () => {
+    el.copyFallback.hidden = true;
+  });
+
   // 模式卡里点一条经验，换成那条经验的断语卡。
   el.popover.addEventListener("click", (event) => {
     const member = event.target.closest("[data-star]");
     if (member) openLesson(member.dataset.star);
   });
 
+  el.popover.addEventListener("pointerdown", pauseReplay);
+  el.popover.addEventListener("keydown", pauseReplay);
+  el.stars.addEventListener("pointerdown", pauseReplay);
+  el.stars.addEventListener("keydown", pauseReplay);
+  motionPreference.addEventListener("change", () => {
+    replay.setMotion(state.motion && !motionPreference.matches);
+    if (motionPreference.matches) applyMotion(false);
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && replay.playing) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      pauseReplay();
+    }
+  }, true);
+
+  // 聚焦模式叠在浮框之上：Esc 先退出聚焦，再关浮框、返回上层。
+  // 捕获阶段拦下，避免浮框自己的 Esc 处理同时把卡片关掉。
+  window.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.key !== "Escape" || !state.focusMode) return;
+      event.stopPropagation();
+      state.focusMode = false;
+      syncFocus();
+    },
+    true
+  );
+
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      if (!el.copyFallback.hidden) {
+        el.copyFallback.hidden = true;
+        el.copy.focus();
+        return;
+      }
       if (popover.isOpen) return popover.close();
       if (state.route.level !== "overview") navigate(backOneLevel(state.route));
       return;
     }
     if (event.target.closest("input, textarea")) return;
+    if (event.key === "f" || event.key === "F") {
+      if (event.metaKey || event.ctrlKey || event.altKey || event.repeat || event.isComposing) return;
+      toggleFocus();
+      return;
+    }
     if (event.key === "+" || event.key === "=") camera.zoomBy(1.2);
     if (event.key === "-" || event.key === "_") camera.zoomBy(1 / 1.2);
     if (event.key === "0") {
@@ -761,16 +947,19 @@ export function startApp() {
 
   function measureInsets() {
     document.documentElement.style.setProperty("--inset-top", `${el.topBar.offsetHeight}px`);
-    document.documentElement.style.setProperty("--inset-bottom", `${el.bottomBar.offsetHeight}px`);
+    document.documentElement.style.setProperty("--inset-bottom", `${el.bottomBar.offsetHeight + (replay.steps.length ? 24 : 0)}px`);
   }
 
   document.addEventListener("visibilitychange", () => {
+    if (document.hidden) pauseReplay();
     if (!document.hidden && !state.motion) background.frame(0, camera.current, false);
   });
 
   function applyMotion(on, { silent = false } = {}) {
     const wasOn = state.motion;
     state.motion = on;
+    replay.setMotion(on && !motionPreference.matches);
+    if (!on) scene.clearFlashes();
     el.app.dataset.motion = on ? "on" : "off";
     el.motion.setAttribute("aria-pressed", on ? "false" : "true");
     el.motion.textContent = on ? "动效 开" : "动效 关";
