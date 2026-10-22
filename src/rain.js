@@ -1,4 +1,5 @@
-/** 流星：稀疏的亮点斜向划过，头部近白绿发光，尾迹渐变到透明。不画任何字符。 */
+/** 流星：稀疏的亮点斜向划过，头部近白绿发光，尾迹渐变到透明。不画任何字符。
+ * 画在自己的画布上，平移视差由调用方用 transform 叠加，这里只负责流星本身。 */
 import { makeRng, range } from "./random.js";
 
 const MOBILE_WIDTH = 860;
@@ -6,6 +7,7 @@ const MOBILE_WIDTH = 860;
 export function createRain(ctx) {
   const noop = { frame() {}, resize() {} };
   if (!ctx) return noop;
+  const canvas = ctx.canvas;
   const rng = makeRng("rain");
 
   let width = 0;
@@ -18,6 +20,12 @@ export function createRain(ctx) {
   function resize(nextWidth, nextHeight, dpr) {
     width = nextWidth;
     height = nextHeight;
+    const ratio = Math.min(dpr || window.devicePixelRatio || 1, 2);
+    if (canvas) {
+      canvas.width = Math.round(width * ratio);
+      canvas.height = Math.round(height * ratio);
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    }
     readGreen();
     const mobile = width <= MOBILE_WIDTH;
     const count = mobile ? 4 : 8;
@@ -31,6 +39,7 @@ export function createRain(ctx) {
 
   function frame(dt, motion) {
     if (!width || !height || !meteors.length) return;
+    ctx.clearRect(0, 0, width, height);
     ctx.save();
     ctx.lineCap = "round";
     for (const m of meteors) {
