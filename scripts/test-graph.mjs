@@ -210,7 +210,7 @@ test("同一来源在同一步骤里重复引用：节点去重，引文合并�
   });
   const stepId = graph.step("t", "i", "s").id;
   const sources = graph.sources(stepId);
-  assert.equal(new Set(sources).size, 1); // refIds 未去重，重复引用返回同一节点
+  assert.equal(sources.length, 1); // refIds 已去重，重复引用只返回一次
   assert.equal(sources[0].quote, "第一段\n第二段");
   assert.equal([...graph.nodes.values()].filter((n) => n.type === "source").length, 1);
   assert.equal(graph.edges.filter((e) => e.kind === "source").length, 1);
