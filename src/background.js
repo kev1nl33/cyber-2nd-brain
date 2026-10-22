@@ -4,14 +4,12 @@
  * the camera so the scene feels like it sits inside a space.
  */
 import { createGlow } from "./glow.js";
-import { createRain } from "./rain.js";
 import { makeRng, range } from "./random.js";
 
 export function createBackground({ canvas }) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return { resize() {}, frame() {}, setMode() {} };
   const glow = createGlow(ctx);
-  const rain = createRain(ctx);
   const rng = makeRng("background");
   let width = 0;
   let height = 0;
@@ -29,7 +27,6 @@ export function createBackground({ canvas }) {
     canvas.height = Math.round(height * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     seed();
-    rain.resize(width, height, dpr);
     glow.resize(width, height, dpr);
   }
 
@@ -70,8 +67,6 @@ export function createBackground({ canvas }) {
     const cy = height / 2;
 
     drawGrid(camera);
-
-    rain.frame(dt, motion);
 
     if (mode === "intro") introT += dt;
 

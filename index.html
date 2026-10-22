@@ -15,6 +15,7 @@
 <body>
   <div id="app" class="app" data-motion="on">
     <canvas id="bg-canvas" class="bg-canvas" aria-hidden="true"></canvas>
+    <canvas id="meteor-canvas" class="meteor-canvas" aria-hidden="true"></canvas>
     <div class="grain" aria-hidden="true"></div>
     <div class="vignette" aria-hidden="true"></div>
 
@@ -44,7 +45,9 @@
     </header>
 
     <main class="stage" id="stage" aria-label="思考图谱画布">
-      <div class="stars" id="stars" role="group" aria-label="天秤座：行为模式与可复用经验"></div>
+      <div class="stars" id="stars" role="group" aria-label="天秤座：行为模式与可复用经验">
+        <svg class="constellation-lines" aria-hidden="true"></svg>
+      </div>
       <svg class="edges" id="edges" aria-hidden="true">
         <defs>
           <marker id="arrow-recorded" markerWidth="7" markerHeight="7" refX="5.6" refY="3" orient="auto">

@@ -8,7 +8,9 @@ import { createCamera } from "./camera.js";
 import { loadGraph, relatedIdeas } from "./graph.js";
 import { runIntro } from "./intro.js";
 import { boundsOf, computeLayout } from "./layout.js";
+import { parallaxShift } from "./parallax.js";
 import { createPopover } from "./popover.js";
+import { createRain } from "./rain.js";
 import { backOneLevel, buildHash, parseHash } from "./route.js";
 import { createScene } from "./scene.js";
 import { createStars } from "./stars.js";
@@ -23,6 +25,7 @@ export function startApp() {
     edges: document.getElementById("edges"),
     tags: document.getElementById("edge-tags"),
     bg: document.getElementById("bg-canvas"),
+    meteors: document.getElementById("meteor-canvas"),
     topBar: document.querySelector(".top-bar"),
     bottomBar: document.querySelector(".bottom-bar"),
     breadcrumb: document.getElementById("breadcrumb"),
@@ -57,6 +60,9 @@ export function startApp() {
 
   const camera = createCamera();
   const background = createBackground({ canvas: el.bg });
+  const meteors = createRain(el.meteors.getContext("2d"));
+  /** 视差的静止点：第一次布局时的相机位置。之后只认平移，不认缩放。 */
+  let parallaxOrigin = null;
   const scene = createScene({
     nodesLayer: el.nodes,
     edgesSvg: el.edges,
@@ -69,7 +75,7 @@ export function startApp() {
   // 天秤铺在画布背景上，不跟链条走；lessons.js 缺失时这里什么都不画。
   const stars = createStars({
     layer: el.stars,
-    svg: el.edges,
+    svg: el.stars.querySelector(".constellation-lines"),
     onOpen: openStar,
   });
   const lessons = globalThis.window?.LESSONS?.lessons || [];
@@ -165,6 +171,7 @@ export function startApp() {
       fitCamera();
       if (instantCamera) camera.snap();
     }
+    if (!parallaxOrigin) parallaxOrigin = { x: camera.current.x, y: camera.current.y };
     applySelection();
     syncFocus();
     renderChrome();
@@ -1003,6 +1010,7 @@ export function startApp() {
   let resizeTimer = null;
   window.addEventListener("resize", () => {
     measureInsets();
+    resizeMeteors();
     background.resize();
     if (!state.motion && !document.hidden) background.frame(0, camera.current, false);
     clearTimeout(resizeTimer);
@@ -1037,7 +1045,11 @@ export function startApp() {
   // ---------------------------------------------------------------- main loop
 
   background.resize();
-  if (!state.motion && !document.hidden) background.frame(0, camera.current, false);
+  resizeMeteors();
+  if (!state.motion && !document.hidden) {
+    background.frame(0, camera.current, false);
+    meteors.frame(0, false);
+  }
   let last = performance.now();
   function tick(now) {
     const dt = Math.min((now - last) / 1000, 0.05);
@@ -1050,10 +1062,29 @@ export function startApp() {
       activateNode(nodeId, element?.isConnected ? element : scene.nodeElement(nodeId));
     }
     stars.frame();
+    applyParallax();
+    if (!document.hidden) meteors.frame(dt, state.motion);
     syncPopoverAnchor();
     requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
+
+  function resizeMeteors() {
+    const rect = el.bg.getBoundingClientRect();
+    meteors.resize(rect.width, rect.height, window.devicePixelRatio || 1);
+  }
+
+  /** 星空 0.3、流星 0.6，节点层由 scene 按相机 1 倍定位。只动 transform。 */
+  function applyParallax() {
+    const origin = parallaxOrigin || camera.current;
+    const pan = {
+      dx: (origin.x - camera.current.x) * camera.current.scale,
+      dy: (origin.y - camera.current.y) * camera.current.scale,
+    };
+    const shift = parallaxShift(pan, { reduced: !state.motion || motionPreference.matches });
+    el.stars.style.transform = `translate3d(${shift.stars.x.toFixed(1)}px, ${shift.stars.y.toFixed(1)}px, 0)`;
+    el.meteors.style.transform = `translate3d(${shift.meteors.x.toFixed(1)}px, ${shift.meteors.y.toFixed(1)}px, 0)`;
+  }
 
   function syncPopoverAnchor() {
     if (!popover.isOpen || !state.popover) {

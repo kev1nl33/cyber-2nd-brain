@@ -45,11 +45,16 @@ button {
     var(--void);
 }
 
-.bg-canvas {
+.bg-canvas,
+.meteor-canvas {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.meteor-canvas {
+  pointer-events: none;
 }
 
 .vignette {
@@ -1598,6 +1603,15 @@ button {
   position: absolute;
   inset: 0;
   z-index: 5;
+  pointer-events: none;
+}
+
+.constellation-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
   pointer-events: none;
 }
 

@@ -160,7 +160,7 @@ export function createStars({ layer, svg, onOpen }) {
 
   const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
   group.setAttribute("class", "constellations");
-  svg.insertBefore(group, svg.firstChild);
+  svg.appendChild(group);
 
   /** @type {{ from: string, to: string, path: SVGPathElement }[]} */
   const lines = [];
