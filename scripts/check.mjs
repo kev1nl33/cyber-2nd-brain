@@ -149,6 +149,7 @@ for (const themeNode of graph.themes()) {
 
 for (const file of [
   "test-check-suite.mjs",
+  "test-gitignore.mjs",
   "test-route.mjs",
   "test-replay.mjs",
   "test-graph.mjs",
