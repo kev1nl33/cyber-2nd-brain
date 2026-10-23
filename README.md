@@ -104,6 +104,7 @@ node scripts/test-check-suite.mjs
 node scripts/test-html-chrome.mjs
 node scripts/test-gitignore.mjs
 node scripts/test-no-private-data.mjs
+node scripts/test-check-lessons-optin.mjs
 node scripts/test-current-blog.mjs
 node scripts/test-readme-tests.mjs
 node scripts/test-graph.mjs
@@ -159,7 +160,7 @@ node scripts/test-effects-perf.mjs
 ├── scripts/                 # 检查与测试脚本
 │   ├── check.mjs
 │   ├── check-lessons.mjs
-│   └── test-*.mjs           # 单元测试（graph / sample-data / layout / route / replay / random / sources-dedup / two-hop / daily-star / grow / curves / core-breathe / anatomy / camera / glyphs / parallax / lod / perf-budget / effects-perf / check-suite / html-chrome / gitignore / no-private-data / current-blog / readme-tests）
+│   └── test-*.mjs           # 单元测试（graph / sample-data / layout / route / replay / random / sources-dedup / two-hop / daily-star / grow / curves / core-breathe / anatomy / camera / glyphs / parallax / lod / perf-budget / effects-perf / check-suite / html-chrome / gitignore / no-private-data / check-lessons-optin / current-blog / readme-tests）
 ├── PRD.md                   # 产品需求与方向
 ├── current.md               # 当前界面与交互约定
 ├── visual-polish.md         # 视觉调整文档
