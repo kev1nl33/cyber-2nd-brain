@@ -151,6 +151,7 @@ for (const file of [
   "test-check-suite.mjs",
   "test-gitignore.mjs",
   "test-html-chrome.mjs",
+  "test-no-private-data.mjs",
   "test-route.mjs",
   "test-replay.mjs",
   "test-graph.mjs",
