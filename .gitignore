@@ -5,3 +5,7 @@ preview*.png
 exports/
 .claude-verify/
 .voiden-ref/
+
+# 忽略各级目录中的 Agent 工作产物
+result.md
+CLAUDE.md
