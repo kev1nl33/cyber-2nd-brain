@@ -150,6 +150,7 @@ for (const themeNode of graph.themes()) {
 for (const file of [
   "test-route.mjs",
   "test-graph.mjs",
+  "test-sample-data.mjs",
   "test-layout.mjs",
   "test-random.mjs",
   "test-sources-dedup.mjs",
