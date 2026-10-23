@@ -254,6 +254,10 @@ button {
   outline: none;
 }
 
+.chip--blog {
+  text-decoration: none;
+}
+
 .chip--back {
   border-color: rgba(126, 242, 176, 0.42);
   color: var(--green);
@@ -1581,6 +1585,12 @@ button {
 /* ------------------------------------------------------------- responsive */
 
 @media (max-width: 860px) {
+  .top-actions:has(> .chip--blog) {
+    max-width: calc(100% - 40px);
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
   .status-line {
     display: none;
   }
