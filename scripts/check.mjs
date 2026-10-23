@@ -151,6 +151,7 @@ for (const file of [
   "test-check-suite.mjs",
   "test-gitignore.mjs",
   "test-html-chrome.mjs",
+  "test-chrome-landmarks.mjs",
   "test-motion-toggle-aria.mjs",
   "test-copy-link-live.mjs",
   "test-copy-fallback-aria.mjs",

@@ -107,6 +107,7 @@ node scripts/check-lessons.mjs
 ```bash
 node scripts/test-check-suite.mjs
 node scripts/test-html-chrome.mjs
+node scripts/test-chrome-landmarks.mjs
 node scripts/test-motion-toggle-aria.mjs
 node scripts/test-copy-link-live.mjs
 node scripts/test-copy-fallback-aria.mjs
@@ -181,7 +182,7 @@ node scripts/test-effects-perf.mjs
 ├── scripts/                 # 检查与测试脚本
 │   ├── check.mjs
 │   ├── check-lessons.mjs
-│   └── test-*.mjs           # 单元测试（graph / sample-data / layout / route / replay / random / sources-dedup / two-hop / daily-star / grow / curves / core-breathe / anatomy / camera / glyphs / parallax / lod / perf-budget / effects-perf / check-suite / html-chrome / motion-toggle-aria / copy-link-live / copy-fallback-aria / zoom-aria / breadcrumb-aria / popover-close-aria / popover-dialog / stage-aria / stars-aria / legend-aria / legend-icons-aria / nodes-aria / decor-aria-hidden / graph-aria-hidden / intro-aria-hidden / styles-blog-chip / gitignore / no-private-data / check-lessons-optin / current-blog / readme-tests）
+│   └── test-*.mjs           # 单元测试（graph / sample-data / layout / route / replay / random / sources-dedup / two-hop / daily-star / grow / curves / core-breathe / anatomy / camera / glyphs / parallax / lod / perf-budget / effects-perf / check-suite / html-chrome / chrome-landmarks / motion-toggle-aria / copy-link-live / copy-fallback-aria / zoom-aria / breadcrumb-aria / popover-close-aria / popover-dialog / stage-aria / stars-aria / legend-aria / legend-icons-aria / nodes-aria / decor-aria-hidden / graph-aria-hidden / intro-aria-hidden / styles-blog-chip / gitignore / no-private-data / check-lessons-optin / current-blog / readme-tests）
 ├── PRD.md                   # 产品需求与方向
 ├── current.md               # 当前界面与交互约定
 ├── visual-polish.md         # 视觉调整文档
