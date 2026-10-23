@@ -45,6 +45,7 @@
 - **景深视差**：平移画布时星空、流星与节点按不同深度跟随（0.3 / 0.6 / 1），产生远近层次；关闭动效时背景两层固定不动。
 - **缩放分层**：缩得很远时只留主题名，拉近后依次出现问题文字和步骤文字，阈值附近有滞回避免来回闪烁；选中路径上、浮框打开处以及键盘或链接跳到的节点，文字始终保留。
 - **思考回放**：展开问题后，底部出现一条细时间条。播放时按日期每 0.8 秒点亮一步并闪亮到该步的连线，可拖动时间条跳步，Esc 或再次点击暂停；系统开启「减少动态效果」时不自动播放，仅支持拖动回看。
+- **返回博客**：顶栏「返回博客」chip 一键跳回个人博客 https://aikevin.dpdns.org/；窄屏下顶栏自动换行，chip 始终可达。
 
 ## 界面
 
@@ -99,6 +100,7 @@ node scripts/check-lessons.mjs
 单元测试基于 Node 内置的 `node:test`，零依赖、不读 `private-data/`，可单独运行：
 
 ```bash
+node scripts/test-check-suite.mjs
 node scripts/test-graph.mjs
 node scripts/test-sample-data.mjs
 node scripts/test-layout.mjs
@@ -152,7 +154,7 @@ node scripts/test-effects-perf.mjs
 ├── scripts/                 # 检查与测试脚本
 │   ├── check.mjs
 │   ├── check-lessons.mjs
-│   └── test-*.mjs           # 单元测试（graph / sample-data / layout / route / replay / random / sources-dedup / two-hop / daily-star / grow / core-breathe / anatomy / camera / glyphs / parallax / lod）
+│   └── test-*.mjs           # 单元测试（graph / sample-data / layout / route / replay / random / sources-dedup / two-hop / daily-star / grow / curves / core-breathe / anatomy / camera / glyphs / parallax / lod / perf-budget / effects-perf / check-suite）
 ├── PRD.md                   # 产品需求与方向
 ├── current.md               # 当前界面与交互约定
 ├── visual-polish.md         # 视觉调整文档
