@@ -153,6 +153,7 @@ for (const file of [
   "test-html-chrome.mjs",
   "test-motion-toggle-aria.mjs",
   "test-copy-link-live.mjs",
+  "test-copy-fallback-aria.mjs",
   "test-zoom-aria.mjs",
   "test-breadcrumb-aria.mjs",
   "test-popover-close-aria.mjs",
