@@ -158,6 +158,7 @@ for (const file of [
   "test-popover-close-aria.mjs",
   "test-stage-aria.mjs",
   "test-stars-aria.mjs",
+  "test-legend-aria.mjs",
   "test-styles-blog-chip.mjs",
   "test-no-private-data.mjs",
   "test-check-lessons-optin.mjs",
