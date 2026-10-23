@@ -104,6 +104,7 @@ node scripts/test-check-suite.mjs
 node scripts/test-html-chrome.mjs
 node scripts/test-gitignore.mjs
 node scripts/test-no-private-data.mjs
+node scripts/test-current-blog.mjs
 node scripts/test-readme-tests.mjs
 node scripts/test-graph.mjs
 node scripts/test-sample-data.mjs
