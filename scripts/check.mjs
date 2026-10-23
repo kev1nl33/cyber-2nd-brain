@@ -162,6 +162,7 @@ for (const file of [
   "test-stars-aria.mjs",
   "test-legend-aria.mjs",
   "test-nodes-aria.mjs",
+  "test-decor-aria-hidden.mjs",
   "test-styles-blog-chip.mjs",
   "test-no-private-data.mjs",
   "test-check-lessons-optin.mjs",
