@@ -161,6 +161,7 @@ for (const file of [
   "test-stage-aria.mjs",
   "test-stars-aria.mjs",
   "test-legend-aria.mjs",
+  "test-legend-icons-aria.mjs",
   "test-nodes-aria.mjs",
   "test-decor-aria-hidden.mjs",
   "test-graph-aria-hidden.mjs",
