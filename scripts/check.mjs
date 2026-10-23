@@ -153,6 +153,7 @@ for (const file of [
   "test-html-chrome.mjs",
   "test-no-private-data.mjs",
   "test-current-blog.mjs",
+  "test-readme-tests.mjs",
   "test-route.mjs",
   "test-replay.mjs",
   "test-graph.mjs",
