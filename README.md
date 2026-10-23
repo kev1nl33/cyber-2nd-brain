@@ -101,6 +101,8 @@ node scripts/check-lessons.mjs
 
 ```bash
 node scripts/test-check-suite.mjs
+node scripts/test-html-chrome.mjs
+node scripts/test-gitignore.mjs
 node scripts/test-graph.mjs
 node scripts/test-sample-data.mjs
 node scripts/test-layout.mjs
@@ -154,7 +156,7 @@ node scripts/test-effects-perf.mjs
 ├── scripts/                 # 检查与测试脚本
 │   ├── check.mjs
 │   ├── check-lessons.mjs
-│   └── test-*.mjs           # 单元测试（graph / sample-data / layout / route / replay / random / sources-dedup / two-hop / daily-star / grow / curves / core-breathe / anatomy / camera / glyphs / parallax / lod / perf-budget / effects-perf / check-suite）
+│   └── test-*.mjs           # 单元测试（graph / sample-data / layout / route / replay / random / sources-dedup / two-hop / daily-star / grow / curves / core-breathe / anatomy / camera / glyphs / parallax / lod / perf-budget / effects-perf / check-suite / html-chrome / gitignore）
 ├── PRD.md                   # 产品需求与方向
 ├── current.md               # 当前界面与交互约定
 ├── visual-polish.md         # 视觉调整文档
