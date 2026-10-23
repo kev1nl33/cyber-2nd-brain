@@ -97,6 +97,8 @@ node scripts/check-lessons.mjs
 
 **只有 `check.mjs --private-data` 和 `check-lessons.mjs` 会尝试读取 `private-data/`，仅在允许访问本地真实笔记时运行。**
 
+一句话：日常发版只跑 `node scripts/check.mjs`；`check-lessons.mjs` 是可选检查，需要本地 `private-data/`，不在默认套件里。
+
 单元测试基于 Node 内置的 `node:test`，零依赖、不读 `private-data/`，可单独运行：
 
 ```bash
