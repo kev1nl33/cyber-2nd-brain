@@ -2175,4 +2175,5 @@ button {
 .edge--recorded.is-active { --edge-color: rgba(205, 255, 226, 0.82); }
 .edge--inferred { --edge-color: var(--cool-soft); }
 .edge--inferred.is-active { --edge-color: rgba(158, 234, 244, 0.9); }
-.edge--source .edge-line { stroke: var(--cool-soft); }
+.edge--source .edge-line,
+.edge--source.is-active .edge-line { stroke: var(--cool-soft); }

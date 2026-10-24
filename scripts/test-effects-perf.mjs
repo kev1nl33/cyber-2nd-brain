@@ -498,12 +498,36 @@ rainCanvas.ops = [];
 rain.frame(0.05, true);
 check(!rainCanvas.ops.some((op) => op[0] === "lineTo"), "popover stops new meteors after current one exits");
 
+rain.resize(1440, 900, 2);
+rainCanvas.ops = [];
+rain.frame(0.05, true);
+check(!rainCanvas.ops.some((op) => op[0] === "lineTo"), "paused resize does not introduce a new meteor");
+
 const sceneSource = readFileSync(new URL("../src/scene.js", import.meta.url), "utf8");
 const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
 const cssSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
 check(sceneSource.includes('gradient.setAttribute("gradientUnits", "userSpaceOnUse")') && sceneSource.includes('[[0, 0.4], [1, 1]]'), "main-line gradient uses user-space 0.4-to-1 opacity");
 check(sceneSource.includes('edge.kind === "recorded" || edge.kind === "inferred"') && sceneSource.includes('line.style.stroke = `url(#${gradientId})`'), "only main-line kinds get gradients, inline stroke survives CSS selection rules");
 check(["x1", "y1", "x2", "y2"].every((attr) => sceneSource.includes(`view.gradient.setAttribute("${attr}"`)), "gradient endpoints update with curve endpoints");
+// Resolve the real class selectors by CSS specificity and source order.
+function sourceStroke(active) {
+  const classes = new Set(["edge", "edge--source", ...(active ? ["is-active"] : [])]);
+  let winner = { specificity: -1, value: null };
+  for (const match of cssSource.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const stroke = /(?:^|;)\s*stroke:\s*([^;]+)/.exec(match[2]);
+    if (!stroke) continue;
+    for (const selector of match[1].trim().split(",")) {
+      const parts = selector.trim().split(/\s+/);
+      if (parts.at(-1) !== ".edge-line" || parts.length !== 2) continue;
+      const required = [...parts[0].matchAll(/\.([\w-]+)/g)].map((m) => m[1]);
+      if (!required.length || !required.every((name) => classes.has(name))) continue;
+      const specificity = required.length + 1;
+      if (specificity >= winner.specificity) winner = { specificity, value: stroke[1].trim() };
+    }
+  }
+  return winner.value;
+}
+check(sourceStroke(false) === "var(--cool-soft)" && sourceStroke(true) === "var(--cool-soft)", "source stroke stays cyan when active under actual CSS specificity");
 check(/\.edge\.is-dim\s*\{\s*opacity: 0\.35/.test(cssSource) && appSource.includes("const path = focusPath(limit)"), "selection reuses focusPath prefix and dims future edges to 0.35");
 
 const digestPayload = {

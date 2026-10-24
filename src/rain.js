@@ -44,6 +44,8 @@ export function createRain(ctx) {
       const m = spawn({});
       m.x = rng() * width;
       m.y = rng() * height;
+      // Resizing while inspecting must not create new visible meteors.
+      if (paused) m.delay = 1;
       return m;
     });
     if (deep) setDepth("idea", paused);

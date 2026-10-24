@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { loadGraph } from "../src/graph.js";
-import { peripheralScreen } from "../src/scene.js";
+import { peripheralScreen, nodeMarkup } from "../src/scene.js";
 import { createCamera } from "../src/camera.js";
 import { computeLayout, boundsOf } from "../src/layout.js";
 
@@ -215,4 +215,27 @@ test("第五期：1440桌面问题主题脑完整入屏，fit不包含外围", (
     assert.ok(screen.x - radius >= 0 && screen.x + radius <= DESKTOP.width);
     assert.ok(screen.y - radius >= 0 && screen.y + radius <= DESKTOP.height);
   }
+});
+
+
+test("节点实际markup：每种示例节点均返回SVG图形和中文标签", () => {
+  const graph = useSampleGraph();
+  const seen = new Set();
+  const views = [
+    { level: "overview" },
+    { level: "theme", themeId: "develop" },
+    { level: "idea", themeId: "develop", ideaId: "develop-brain", expanded: new Set(graph.steps("develop", "develop-brain").map((step) => step.id)) },
+  ];
+  for (const view of views) {
+    for (const p of computeLayout(graph, view, DESKTOP).placements.values()) {
+      const html = nodeMarkup(p);
+      assert.equal(typeof html, "string", `${p.role} must return actual HTML`);
+      assert.match(html, /<svg[^>]*>[\s\S]+<\/svg>/, `${p.role} has real SVG art`);
+      assert.match(html, /class="node-title">[^<]+<\/span>/, `${p.role} has visible title`);
+      assert.ok(html.includes(p.node.shortTitle || p.node.label), `${p.role} preserves its title`);
+      assert.doesNotMatch(html, /undefined|NaN/);
+      seen.add(p.node.type);
+    }
+  }
+  assert.deepEqual([...seen].sort(), ["conclusion", "core", "idea", "source", "step", "theme"]);
 });

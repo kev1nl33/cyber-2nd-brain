@@ -116,6 +116,57 @@ export function peripheralScreen(screen, area, radius) {
   };
 }
 
+function artMarkup(placement) {
+  const { node, detail, role } = placement;
+  if (node.type === "core" || node.type === "theme") {
+    return brainArt({ seed: node.id, detail: detail || (role === "theme-away" ? "distant" : "theme") });
+  }
+  if (node.type === "idea") return ideaGlyph(hashString(node.id) % 97);
+  if (node.type === "step") return stepGlyph(node.family);
+  if (node.type === "conclusion") return conclusionGlyph();
+  return sourceGlyph();
+}
+
+function labelMarkup(placement) {
+  const { node } = placement;
+  if (node.type === "core") {
+    return field("node-kicker", node.latin) + field("node-title", node.label);
+  }
+  if (node.type === "theme") {
+    return (
+      field("node-kicker", `${node.code || ""} ${node.latin || ""}`.trim()) +
+      field("node-title", node.label) +
+      field("node-note", `${node.ideaCount} 个问题`)
+    );
+  }
+  if (node.type === "idea") {
+    return field("node-kicker", "问题") + field("node-title", node.label);
+  }
+  if (node.type === "step") {
+    return (
+      field("node-kicker", `${pad(node.index)} · ${node.kind || ""}`) +
+      field("node-title", node.label) +
+      field("node-note", node.date || "")
+    );
+  }
+  if (node.type === "conclusion") {
+    return field("node-kicker", "阶段理解") + field("node-title", node.shortTitle || node.label);
+  }
+  return field("node-kicker", "来源") + field("node-title", node.label);
+}
+
+export function nodeMarkup(placement) {
+  return `<span class="node-art"><svg viewBox="-110 -110 220 220" aria-hidden="true">${artMarkup(
+      placement
+    )}</svg>${
+      placement.node.type === "step" ? `<span class="node-index">${pad(placement.node.index)}</span>` : ""
+    }${
+      placement.node.type === "step" && placement.node.refIds?.length
+        ? `<span class="node-sources" aria-hidden="true">${placement.node.refIds.length}</span>`
+        : ""
+    }</span>` + `<span class="node-label label--${placement.labelSide}">${labelMarkup(placement)}</span>`;
+}
+
 export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onActivate, onHoverChange }) {
   const edgeGroup = edgesSvg.querySelector("#edge-group");
   // 每帧都要用的连线锚，建场景时查一次，不在 frame() 里反复 querySelector。
@@ -156,45 +207,6 @@ let pendingGrow = null;
 
   noHover.addEventListener("change", () => clearHover());
 
-  function artMarkup(placement) {
-    const { node, detail, role } = placement;
-    if (node.type === "core" || node.type === "theme") {
-      return brainArt({ seed: node.id, detail: detail || (role === "theme-away" ? "distant" : "theme") });
-    }
-    if (node.type === "idea") return ideaGlyph(hashString(node.id) % 97);
-    if (node.type === "step") return stepGlyph(node.family);
-    if (node.type === "conclusion") return conclusionGlyph();
-    return sourceGlyph();
-  }
-
-  function labelMarkup(placement) {
-    const { node } = placement;
-    if (node.type === "core") {
-      return field("node-kicker", node.latin) + field("node-title", node.label);
-    }
-    if (node.type === "theme") {
-      return (
-        field("node-kicker", `${node.code || ""} ${node.latin || ""}`.trim()) +
-        field("node-title", node.label) +
-        field("node-note", `${node.ideaCount} 个问题`)
-      );
-    }
-    if (node.type === "idea") {
-      return field("node-kicker", "问题") + field("node-title", node.label);
-    }
-    if (node.type === "step") {
-      return (
-        field("node-kicker", `${pad(node.index)} · ${node.kind || ""}`) +
-        field("node-title", node.label) +
-        field("node-note", node.date || "")
-      );
-    }
-    if (node.type === "conclusion") {
-      return field("node-kicker", "阶段理解") + field("node-title", node.shortTitle || node.label);
-    }
-    return field("node-kicker", "来源") + field("node-title", node.label);
-  }
-
   function ariaLabel(placement) {
     const { node } = placement;
     if (node.type === "step") return `步骤 ${node.index}：${node.label}，${node.kind || ""}`;
@@ -203,19 +215,6 @@ let pendingGrow = null;
     if (node.type === "conclusion") return `阶段理解：${node.summary || ""}`;
     if (node.type === "source") return `来源 ${node.label}`;
     return node.label;
-  }
-
-  function nodeMarkup(placement) {
-    return
-      `<span class="node-art"><svg viewBox="-110 -110 220 220" aria-hidden="true">${artMarkup(
-        placement
-      )}</svg>${
-        placement.node.type === "step" ? `<span class="node-index">${pad(placement.node.index)}</span>` : ""
-      }${
-        placement.node.type === "step" && placement.node.refIds?.length
-          ? `<span class="node-sources" aria-hidden="true">${placement.node.refIds.length}</span>`
-          : ""
-      }</span>` + `<span class="node-label label--${placement.labelSide}">${labelMarkup(placement)}</span>`;
   }
 
   function createNode(placement) {
