@@ -109,3 +109,13 @@ test("activityArc：比例转弧，0 或非法比例不画", () => {
   assert.match(activityArc(0.5), /class="glyph-arc"/);
   assert.match(activityArc(1), /A 94 94 0 1 1/); // ratio=1 画满整圈，large-arc=1
 });
+
+test("dense rings keep exact segment count with nonzero geometry", () => {
+  for (const n of [59,60,61,120,1000]) {
+    const svg = ideaGlyph({steps:n});
+    const paths = [...svg.matchAll(/class="glyph-ring"[^>]*d="M ([^ ]+) ([^ ]+) A [^"]+ 1 ([^ ]+) ([^"]+)"/g)];
+    assert.equal(paths.length, n);
+    for (const p of paths) assert.notDeepEqual([p[1],p[2]], [p[3],p[4]], `zero length at ${n}`);
+  }
+  assert.equal([...activityArc(1).matchAll(/ A /g)].length, 2);
+});

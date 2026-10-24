@@ -30,7 +30,7 @@ export function nodeVisual(node, nodes = new Map(), now = new Date()) {
     return {
       steps: typeof node.stepCount === "number" ? node.stepCount : steps.length,
       sources: refs.size,
-      conclusion: conclusion ? (conclusion.unconfirmed ? "unconfirmed" : "confirmed") : null,
+      conclusion: conclusion ? (conclusion.unconfirmed?.length ? "unconfirmed" : "confirmed") : null,
       latest,
       days,
       fresh: days !== null && days >= 0 && days <= 7,
@@ -355,7 +355,6 @@ let pendingGrow = null;
       const latest = latestStepDate(nodes);
       recencyDays = latest ? daysSince(latest) : null;
       applyCoreBreath();
-      applyFingerprints();
     }
     orbit.style.display = [...layout.placements.values()].some((p) => p.orbitAngle !== null) ? "" : "none";
     const previous = placements;
@@ -431,6 +430,8 @@ let pendingGrow = null;
       view.removeTimer = setTimeout(() => removeNode(id, view), collapsing ? 420 : 280);
     }
 
+    applyFingerprints();
+    applyCoreBreath();
     syncEdges();
     const mode = growMode({ collapsing, instant, growInto });
     pendingGrow = mode === "after-settle" ? { previous } : null;
@@ -699,7 +700,9 @@ let pendingGrow = null;
 
   /** 时间轴刻度：结构与选中变化才重建，位置每帧只改属性。 */
   function setTimeline(marks, selectedId = null) {
-    timeline = marks && marks.length ? { marks, selectedId: selectedId || null } : null;
+    timeline = marks && marks.length
+      ? { marks, selectedId: selectedId || marks.find((mark) => mark.selected)?.id || null }
+      : null;
     syncTimeline(true);
   }
 
@@ -723,7 +726,7 @@ let pendingGrow = null;
       pts.push(camera.toScreen(view.cur));
     }
     const sig = timeline.marks
-      .map((mark) => mark.id + (mark.selected || timeline.selectedId === mark.id ? "*" : ""))
+      .map((mark) => mark.id + (timeline.selectedId === mark.id ? "*" : ""))
       .join("|");
     if (force || sig !== timelineSig) {
       timelineSig = sig;
@@ -731,7 +734,7 @@ let pendingGrow = null;
       timeline.marks.forEach((mark, i) => {
         if (i && mark.gapDays > 7) parts.push(`<text class="timeline-gap">+${mark.gapDays} 天</text>`);
         parts.push(
-          `<circle class="timeline-dot${mark.selected || timeline.selectedId === mark.id ? " is-selected" : ""}" r="3.5" />`
+          `<circle class="timeline-dot${timeline.selectedId === mark.id ? " is-selected" : ""}" r="3.5" />`
         );
       });
       timelineG.innerHTML = parts.join("");

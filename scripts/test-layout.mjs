@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { loadGraph } from "../src/graph.js";
-import { peripheralScreen, nodeMarkup, nodeVisual } from "../src/scene.js";
+import { peripheralScreen, nodeMarkup, nodeVisual, createScene } from "../src/scene.js";
 import { createCamera } from "../src/camera.js";
 import { computeLayout, boundsOf } from "../src/layout.js";
 
@@ -274,7 +274,7 @@ test("兄弟问题随相机自然离屏，大幅平移仍保持半圆间距", ()
     ["i", { id: "i", type: "idea", themeId: "t", ideaId: "a", stepCount: 2 }],
     ["j", { id: "j", type: "idea", themeId: "u", ideaId: "b" }],
     ["s", { type: "step", themeId: "t", ideaId: "a", date: "2026-10-23", refIds: ["r", "r", "z"] }],
-    ["c", { type: "conclusion", themeId: "t", ideaId: "a", unconfirmed: true }],
+    ["c", { type: "conclusion", themeId: "t", ideaId: "a", unconfirmed: ["needs evidence"] }],
   ]);
   const before = JSON.stringify([...nodes]);
   const v = nodeVisual(nodes.get("i"), nodes, new Date("2026-10-24"));
@@ -302,4 +302,58 @@ test("landscape steps rise by dated intervals and conclusion follows last step",
     const end = graph.conclusion(idea.themeId,idea.ideaId);
     if (end && steps.length) assert.ok(layout.placements.get(end.id).y <= layout.placements.get(steps.at(-1).id).y);
   }
+});
+
+test("conclusion uses the real unconfirmed array", () => {
+  const idea = { type: "idea", themeId: "t", ideaId: "a" };
+  for (const unconfirmed of [[], ["verify"]]) {
+    const nodes = new Map([["c", { type: "conclusion", themeId: "t", ideaId: "a", unconfirmed }]]);
+    assert.equal(nodeVisual(idea, nodes).conclusion, unconfirmed.length ? "unconfirmed" : "confirmed");
+  }
+});
+
+test("scene initializes visual stats and keeps exactly one timeline selection", () => {
+  class Element {
+    constructor() {
+      this.children = []; this.dataset = {}; this.attrs = {};
+      this.style = { setProperty: (key, value) => { this.attrs[key] = value; } };
+      this.classList = { add() {}, remove() {}, toggle() {} };
+    }
+    setAttribute(k, v) { this.attrs[k] = v; }
+    removeAttribute(k) { delete this.attrs[k]; }
+    addEventListener() {}
+    appendChild(el) { this.children.push(el); }
+    querySelector() { return null; }
+    set innerHTML(value) {
+      this.html = value;
+      this.children = [...value.matchAll(/<(line|text|circle)\b[^>]*>/g)].map(() => new Element());
+    }
+    get innerHTML() { return this.html || ""; }
+    get childElementCount() { return this.children.length; }
+  }
+  const saved = { window: globalThis.window, document: globalThis.document };
+  globalThis.window = { matchMedia: () => ({ matches: false, addEventListener() {} }) };
+  globalThis.document = { createElement: () => new Element(), createElementNS: () => new Element() };
+  try {
+    const nodesLayer = new Element(), edgesSvg = new Element();
+    const edgeGroup = new Element();
+    edgesSvg.querySelector = (selector) => selector === "#edge-group" ? edgeGroup : new Element();
+    const scene = createScene({root: new Element(), nodesLayer, edgesSvg, tagsLayer: new Element(),
+      camera: {current: {scale: 1}, step: () => false, toScreen: p => p}, onActivate() {}});
+    scene.setInstant(true);
+    const idea = {id:"i", type:"idea", label:"I", themeId:"t", ideaId:"a", updated:"2020-01-01"};
+    const theme = {id:"t", type:"theme", label:"T", themeId:"t"};
+    const a = {id:"a", type:"step", index:1}, b = {id:"b", type:"step", index:2};
+    const placements = new Map([idea, theme, a, b].map((node,i) => [node.id, {id:node.id,node,x:i*100,y:0,size:80,role:node.type,labelSide:"bottom",orbitAngle:null}]));
+    scene.setLayout({placements}, [], {nodes: new Map([idea,theme,a,b].map(n => [n.id,n]))});
+    assert.equal(nodesLayer.children[0].dataset.faded, "true");
+    assert.equal(nodesLayer.children[1].attrs["--arc-bright"], "0.550");
+    const axis = edgesSvg.children.find(el => el.attrs.class === "timeline-axis");
+    scene.setTimeline([{id:"a",selected:true,gapDays:0},{id:"b",selected:false,gapDays:8}]);
+    scene.setTimelineSelected("b");
+    const marks = [...axis.innerHTML.matchAll(/class="timeline-dot([^"]*)"/g)].map(m => m[1]);
+    assert.deepEqual(marks, ["", " is-selected"]);
+    scene.setTimelineSelected(null);
+    assert.equal(axis.innerHTML.includes("is-selected"), false);
+  } finally { Object.assign(globalThis, saved); }
 });

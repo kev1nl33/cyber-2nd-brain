@@ -6,10 +6,9 @@
 
 const HALO = '<circle class="glyph-halo" cx="0" cy="0" r="86" />';
 
-/** 段间缺口：问题少时按 6°，段太密时收缩到每段至少留 1.5°。 */
+/** 保留 6° 缺口；60 段及以上按每段一半收缩，保证每段都有可见弧长。 */
 function ringGap(segments) {
-  const span = 360 - 6 * segments;
-  return span >= 0 ? 6 : Math.min(6, 360 / segments - 1.5);
+  return segments < 60 ? 6 : 180 / segments;
 }
 
 /**
@@ -22,7 +21,7 @@ export function ideaGlyph(fingerprint = 0) {
   // 数字签名（旧测试/演示）保留 6 段 7 刺；对象缺字段时宁可少画，不伪造数据。
   const { seed = legacy ? fingerprint : 0, steps = legacy ? 6 : 0, sources = legacy ? 7 : 0, conclusion = null, fresh = false } =
     legacy ? {} : fingerprint;
-  const count = Number.isFinite(steps) && steps > 0 ? Math.min(60, Math.round(steps)) : 0;
+  const count = Number.isFinite(steps) && steps > 0 ? Math.round(steps) : 0;
   const ringClass = conclusion === "confirmed" ? "glyph-ring--warm" : "glyph-ring--pending";
   const gap = count ? ringGap(count) : 0;
   const rings = [];
@@ -87,6 +86,10 @@ export function sourceGlyph() {
 export function activityArc(ratio) {
   if (typeof ratio !== "number" || !Number.isFinite(ratio) || ratio <= 0) return "";
   const clamped = Math.min(1, ratio);
+  // SVG 单个 A 的起终同点不会画整圈；满占比用两个半圆。
+  if (clamped === 1) {
+    return '<path class="glyph-arc" vector-effect="non-scaling-stroke" d="M 0 -94 A 94 94 0 1 1 0 94 A 94 94 0 1 1 0 -94" />';
+  }
   return arc(94, -90, -90 + 360 * clamped, "glyph-arc");
 }
 
@@ -103,6 +106,7 @@ function arc(r, fromDeg, toDeg, className) {
   const a0 = fromDeg * (Math.PI / 180);
   const a1 = toDeg * (Math.PI / 180);
   const large = Math.abs(toDeg - fromDeg) > 180 ? 1 : 0;
+  const round = (n) => Number(n.toPrecision(12));
   return `<path class="${className}" vector-effect="non-scaling-stroke" d="M ${round(
     Math.cos(a0) * r
   )} ${round(Math.sin(a0) * r)} A ${r} ${r} 0 ${large} 1 ${round(Math.cos(a1) * r)} ${round(
