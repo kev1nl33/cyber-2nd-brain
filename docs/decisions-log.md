@@ -1,5 +1,8 @@
 # 决策记录
 
+2026-10-24 · 阶段 2 · 截图目录和文件命名未定义 · docs/v3-screenshots/ 存示例截图，以 stage-N-page-theme-width.png 命名，临时调试脚本放 /tmp，result.md 不提交 · 截图证据可随代码审阅，不引入临时脚本。
+2026-10-24 · 阶段 2 · 验收不能读取真实数据 · 临时服务器对真实数据 URL 直接返回 404，真实模式仅以合成输入验证加载契约 · 保证浏览器也不会间接读取真实数据。
+
 执行者按 docs/v3-build-guide.md 第 0 章第 7 条，在文档未覆盖时追加一行：`日期 · 阶段 · 情况 · 选择 · 理由`。
 
 2026-10-24 · 阶段 1 · 原始数据入参与加载函数未命名 · 使用 loadData(globals) 返回 { mode, thoughts, brain, lessons }，buildModel 接收该对象 · 全局读取集中在 load.js，测试可注入合成数据。
