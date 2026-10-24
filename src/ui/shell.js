@@ -13,7 +13,7 @@ export function mountShell(ctx) {
     return h('a',{href:hrefs[page],class:`nav-item ${ctx.route?.page === page ? 'current' : ''}`,...(ctx.route?.page===page?{'aria-current':'page'}:{})},icon(page),h('span',{class:'nav-label'},label),count ? h('span',{class:page==='review'?'count seal-count':'count'},count) : null);
   }
   let releaseDrawer;
-  function closeDrawer(){const el=document.querySelector('#evidence');el.classList.remove('is-open');el.removeAttribute('aria-modal');el.removeAttribute('role');el.querySelector('.evidence-close')?.remove();document.querySelector('.evidence-toggle')?.setAttribute('aria-expanded','false');const release=releaseDrawer;releaseDrawer=null;release?.();}
+  function closeDrawer(){const el=document.querySelector('#evidence');el.classList.remove('is-open');el.removeAttribute('aria-modal');el.removeAttribute('role');el.querySelector('.evidence-close')?.remove();document.querySelector('.evidence-toggle')?.setAttribute('aria-expanded','false');const release=releaseDrawer;releaseDrawer=null;release?.();document.querySelector('.evidence-toggle')?.focus();}
   function toggleDrawer(event){const el=document.querySelector('#evidence');if(el.classList.contains('is-open')){closeDrawer();return;}el.classList.add('is-open');el.setAttribute('role','dialog');el.setAttribute('aria-modal','true');const button=event.currentTarget;button.setAttribute('aria-expanded','true');el.prepend(h('button',{class:'evidence-close','aria-label':'关闭',onclick:closeDrawer},'关闭'));releaseDrawer=trapFocus(el,closeDrawer,button);}
   ctx.closeDrawer=()=>{if(releaseDrawer)closeDrawer();};
   ctx.escape=closeDrawer;
