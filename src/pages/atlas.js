@@ -28,7 +28,7 @@ export function renderAtlas(ctx, route) {
   element.append(back,control,h('h1',{class:'visually-hidden'},'回望'));
   const canvas=element.querySelector('canvas'), dpr=Math.min(2,devicePixelRatio||1);
   let W=0,H=0,S=0;
-  function resize(){W=innerWidth;H=innerHeight;canvas.width=W*dpr;canvas.height=H*dpr;canvas.style.width=W+'px';canvas.style.height=H+'px';layout();draw();}
+  function resize(){W=innerWidth;H=innerHeight;canvas.width=W*dpr;canvas.height=H*dpr;canvas.style.width=W+'px';canvas.style.height=H+'px';layout();applyDay();draw();}
   const themes=model.themes.slice(0,5);
   const zones=themes.map((t,i)=>{const angle=(-90+i*72)*Math.PI/180;return {theme:t,cx:Math.cos(angle),cy:Math.sin(angle)};});
   const ideas=model.ideas.filter(i=>i.stepKeys.length);
@@ -56,7 +56,7 @@ export function renderAtlas(ctx, route) {
         c.fillStyle='rgba(224,180,92,0.8)';c.font='13px "Noto Serif SC",serif';c.textAlign='center';c.fillText(pattern.name,cx,cy+4);}
       c.restore();}
     const now=performance.now();
-    for(const star of starOf.values()){if(!star.lit)continue;const b=brightness(star);const age=star.lastLit!==null?Math.round((currentDate-star.lastLit)/DAILY):0;const col=starColor(age);
+    for(const star of starOf.values()){if(!star.lit)continue;const b=brightness(star);const age=star.lastLit!==null?Math.round((currentDate-Date.parse(star.lastLit))/DAILY):0;const col=starColor(age);
       c.globalAlpha=0.9*b;c.drawImage(glow,star.x-star.radius*6,star.y-star.radius*6,star.radius*12,star.radius*12);c.globalAlpha=1;c.fillStyle=col;c.beginPath();c.arc(star.x,star.y,star.radius,0,7);c.fill();}
     for(const f of flashes){const t=clamp((now-f.at)/300,0,1);if(t>=1)continue;c.globalAlpha=(1-t)*0.6;c.strokeStyle=colOf(f);c.lineWidth=1;c.beginPath();c.arc(f.x,f.y,f.r*(1+2*t),0,7);c.stroke();c.globalAlpha=1;}
     for(const l of labels){const t=clamp((now-l.at)/2000,0,1);if(t>=1)continue;c.globalAlpha=t<0.85?1:1-(t-0.85)/0.15;c.fillStyle='#e7e9e6';c.font='13px "Noto Serif SC",serif';c.textAlign='center';c.fillText(l.text,l.x,l.y-14);c.globalAlpha=1;}
