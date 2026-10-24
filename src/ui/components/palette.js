@@ -3,10 +3,11 @@ import { buildIndex, search } from '../../data/search.js';
 const names={idea:'问题',step:'步骤',lesson:'经验',theme:'主题',source:'来源',command:'命令'};
 export function openDialog(title, content) {
   const previous=document.activeElement;
-  const close=()=>{backdrop.remove();document.removeEventListener('keydown',onKey,true);previous?.focus?.();};
+  const close=()=>{backdrop.remove();document.removeEventListener('keydown',onKey,true);const target=previous?.isConnected?previous:document.querySelector('#main h1[tabindex],#main');target?.focus?.();};
   const dialog=h('section',{class:'modal',role:'dialog','aria-modal':'true','aria-label':title},h('div',{class:'modal-header'},h('h2',{},title),h('button',{'aria-label':'关闭',onclick:close},icon('close'))),content);
   const backdrop=h('div',{class:'modal-backdrop',onclick:e=>{if(e.target===backdrop)close();}},dialog);
   function onKey(e) {
+    if(document.querySelector('#overlay-root')?.lastElementChild!==backdrop)return;
     if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close();return;}
     if(e.key==='Tab') {const els=[...dialog.querySelectorAll('button,a[href],input,textarea,[tabindex="0"]')].filter(el=>!el.disabled&&!el.hidden);const first=els[0],last=els.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}
   }

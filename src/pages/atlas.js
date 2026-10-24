@@ -24,7 +24,7 @@ export function renderAtlas(ctx, route) {
   const back=h('a',{class:'atlas-back',href:'#/'},'← 返回');
   const firstMonthLabel=start?start.slice(0,7):'', lastMonthLabel=end?end.slice(0,7):'';
   control.append(playBtn,h('span',{class:'atlas-bound'},firstMonthLabel),bar,h('span',{class:'atlas-bound'},lastMonthLabel),dateLabel,speedBtn,starBtn,bridgeBtn);
-  bar.addEventListener('input',()=>{day=Number(bar.value);labels=[];flashes=[];draw();});
+  bar.addEventListener('input',()=>seek(Number(bar.value)));
   element.append(back,control,h('h1',{class:'visually-hidden'},'回望'));
   const canvas=element.querySelector('canvas'), dpr=Math.min(2,devicePixelRatio||1);
   let W=0,H=0,S=0;
@@ -69,7 +69,7 @@ export function renderAtlas(ctx, route) {
   const colOf=f=>f.color;
   function dayToDate(d){return new Date(Date.parse(start)+d*DAILY);}
   const fmt=d=>`${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
-  function play(){if(!steps.length)return;playing=true;wasPlayed=true;lastT=performance.now();day=day>=totalDays?0:day;litKeys=new Set();for(const s of starOf.values()){s.lit=0;s.lastLit=null;}loop();}
+  function play(){if(!steps.length)return;if(day>=totalDays)seek(0);else applyDay();playing=true;wasPlayed=true;lastT=performance.now();loop();}
   let litKeys=new Set();
   function loop(){if(!playing)return;const now=performance.now();const dt=(now-lastT)*(totalDays/fullDuration());lastT=now;const before=day;day=Math.min(totalDays,day+dt);
     for(const step of steps){const sd=Math.round((Date.parse(step.date)-Date.parse(start))/DAILY);if(sd>before&&sd<=day&&!litKeys.has(step.key)){litKeys.add(step.key);const star=starOf.get(step.ideaId);if(star){if(star.lit===0){flashes.push({x:star.x,y:star.y,r:star.radius,color:starColor(0),at:now});if(ctx.prefs.motion!=='off')labels.push({x:star.x,y:star.y,text:star.idea.title,at:now});if(labels.length>3)labels.shift();}star.lit+=1;star.lastLit=step.date;}}}
@@ -77,7 +77,8 @@ export function renderAtlas(ctx, route) {
   function toggle(){playing?stop():play();}
   function stop(){playing=false;cancelAnimationFrame(raf);draw();}
   element.addEventListener('keydown',e=>{if(e.key===' '){e.preventDefault();toggle();}if(e.key==='ArrowRight'){day=Math.min(totalDays,Math.round(day)+7);sync();}if(e.key==='ArrowLeft'){day=Math.max(0,Math.round(day)-7);sync();}if(e.key==='Home'){day=0;sync();}if(e.key==='End'){day=totalDays;sync();}});
-  function sync(){stop();applyDay();draw();}
+  function sync(){seek(day);}
+  function seek(target){playing=false;cancelAnimationFrame(raf);day=clamp(target,0,totalDays);labels=[];flashes=[];lastT=performance.now();applyDay();draw();}
   function applyDay(){litKeys=new Set();for(const s of starOf.values()){s.lit=0;s.lastLit=null;}for(const step of steps){const sd=Math.round((Date.parse(step.date)-Date.parse(start))/DAILY);if(sd<=day){litKeys.add(step.key);const star=starOf.get(step.ideaId);if(star){star.lit+=1;star.lastLit=step.date;}}}}
   canvas.addEventListener('pointermove',e=>{hovered=[...starOf.values()].find(s=>s.lit&&Math.hypot(e.clientX-s.x,e.clientY-s.y)<=Math.max(8,s.radius+4))??null;canvas.style.cursor=hovered?'pointer':'default';draw();});
   canvas.addEventListener('click',()=>{if(hovered)ctx.navigate(`#/q/${encodeURIComponent(hovered.idea.id)}`);});

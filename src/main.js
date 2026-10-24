@@ -71,6 +71,6 @@ function render(force=false) {
 }
 shell=mountShell(ctx);
 window.addEventListener('hashchange',()=>render());
-window.addEventListener('keydown',e=>{if(!(e.target instanceof Element)||e.target.closest('input,textarea,[contenteditable="true"]') || e.metaKey || e.ctrlKey || e.altKey)return;page?.onKey?.(e);});
+window.addEventListener('keydown',e=>{if(e.defaultPrevented || document.querySelector('[aria-modal="true"]') || !(e.target instanceof Element)||e.target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])') || e.metaKey || e.ctrlKey || e.altKey)return;page?.onKey?.(e);});
 window.addEventListener('keydown',e=>{if(e.key!=='Escape'||e.defaultPrevented||document.querySelector('.modal-backdrop'))return;if(ctx.route?.page==='atlas'){e.preventDefault();ctx.navigate('#/');return;}ctx.escape?.(e);});
 render();
