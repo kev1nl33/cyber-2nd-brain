@@ -239,3 +239,32 @@ test("节点实际markup：每种示例节点均返回SVG图形和中文标签",
   }
   assert.deepEqual([...seen].sort(), ["conclusion", "core", "idea", "source", "step", "theme"]);
 });
+
+
+test("兄弟问题随相机自然离屏，大幅平移仍保持半圆间距", () => {
+  fixtureGraph();
+  window.CYBER_THOUGHTS.themes[0].ideas.push(
+    { id: "i3", title: "问题三", nodes: [] },
+    { id: "i4", title: "问题四", nodes: [] }
+  );
+  const graph = loadGraph();
+  const layout = computeLayout(graph, { level: "idea", themeId: "t", ideaId: "i1" }, DESKTOP);
+  const siblings = [...layout.placements.values()].filter((p) => p.role === "idea-away");
+  assert.equal(siblings.length, 3);
+  const camera = createCamera();
+  camera.setArea({ ...DESKTOP, insets: { top: 70, bottom: 90, left: 18, right: 18 } });
+  camera.fit(boundsOf(layout.focus), boundsOf(layout.focus), layout.fit);
+  camera.snap();
+  const project = () => siblings.map((p) => peripheralScreen(camera.toScreen(p), camera.area, p.size * camera.current.scale / 2, p.role));
+  const before = project();
+  camera.panBy(-800, -800);
+  const after = project();
+  for (let i = 0; i < siblings.length; i++) {
+    assert.deepEqual(after[i], camera.toScreen(siblings[i]), "sibling retains its world projection");
+    for (let j = i + 1; j < siblings.length; j++) {
+      const gap = (points) => Math.hypot(points[i].x - points[j].x, points[i].y - points[j].y);
+      assert.ok(gap(after) > 1, "sibling entries must not collapse together");
+      assert.ok(Math.abs(gap(before) - gap(after)) < 1e-8, "panning preserves sibling spacing");
+    }
+  }
+});

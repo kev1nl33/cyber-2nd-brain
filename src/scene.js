@@ -108,7 +108,9 @@ export function edgePath(a, b, kind) {
   };
 }
 
-export function peripheralScreen(screen, area, radius) {
+export function peripheralScreen(screen, area, radius, role = "theme-away") {
+  // Sibling ideas retain their semicircle spacing; offscreen navigation handles them.
+  if (role === "idea-away") return screen;
   const pad = Math.max(64, radius + 18);
   return {
     x: Math.max(area.ox - area.width / 2 + pad, Math.min(area.ox + area.width / 2 - pad, screen.x)),
@@ -642,7 +644,7 @@ let pendingGrow = null;
         orbit.setAttribute("ry", String(ry));
       } else if (p.role === "theme-away" || p.role === "idea-away") {
         // Keep at least half the peripheral label reachable without shrinking focus.
-        Object.assign(screen, peripheralScreen(screen, camera.area, artPx(p, view.cur.size) / 2));
+        Object.assign(screen, peripheralScreen(screen, camera.area, artPx(p, view.cur.size) / 2, p.role));
       }
       const px = artPx(p, view.cur.size);
       view.screen = screen;
