@@ -10,6 +10,11 @@ import { renderToday } from './pages/today.js';
 import { renderReview } from './pages/review.js';
 import { createStore, decide, undo, snooze, toggleUse, exportOverlay, importOverlay } from './data/overlay.js';
 import { showToast } from './ui/components/toast.js';
+import { openPalette, openDialog } from './ui/components/palette.js';
+import { renderTheme } from './pages/theme.js';
+import { renderLessons } from './pages/lessons.js';
+import { renderSources } from './pages/sources.js';
+import { renderTimeline } from './pages/timeline.js';
 
 const model = buildModel(loadData(), { today: todayKey() });
 let page, shell;
@@ -31,16 +36,31 @@ ctx.exportReview = ()=>{
 };
 ctx.importReview = async file=>{try{const next=importOverlay(ctx.overlay,await file.text());save(next);showToast(`已合并 ${Object.keys(next.decisions).length} 条核对记录`);}catch{showToast('文件无法识别');}};
 const main=document.querySelector('#main'), evidence=document.querySelector('#evidence');
+ctx.openCopy=()=>openDialog('复制链接',h('input',{value:location.href,readonly:true,'aria-label':'复制链接',onclick:e=>e.target.select()}));
+ctx.copyLink=async()=>{try{await navigator.clipboard.writeText(location.href);showToast('已复制');}catch{ctx.openCopy();}};
+const destinations=[['今天','#/'],['待核对','#/review'],['年表','#/timeline'],['回望','#/atlas'],['太史公曰','#/lessons'],['来源','#/sources']];
+ctx.openPalette=()=>openPalette(ctx,[...destinations.map(([name,hash],i)=>({id:`go-${i}`,name,run:()=>ctx.navigate(hash)})),{id:'theme',name:'切换深色/浅色',run:()=>ctx.prefs.toggleTheme()},{id:'motion',name:'切换动效',run:()=>ctx.prefs.toggleMotion()},{id:'export',name:'导出核对记录',run:ctx.exportReview},{id:'copy',name:'复制当前链接',run:ctx.copyLink}]);
+ctx.openMenu=type=>{const items=type==='questions'?model.themes.map(t=>[t.label,`#/t/${t.id}`]):destinations.slice(2);const content=h('div',{class:'menu-links'});const modal=openDialog(type==='questions'?'问题':'更多',content);for(const [label,hash]of items)content.append(h('a',{href:hash,onclick:()=>modal.close()},label));if(type!=='questions')content.append(h('button',{onclick:()=>ctx.prefs.toggleTheme()},'深色'),h('button',{onclick:()=>ctx.prefs.toggleMotion()},'动效'),h('a',{href:'https://aikevin.dpdns.org/'},'返回博客'));};
+let gAt=0;
+window.addEventListener('keydown',e=>{
+  const editable=e.target instanceof Element && e.target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])');
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();ctx.openPalette();return;}
+  if(editable||document.querySelector('.modal-backdrop')||e.metaKey||e.ctrlKey||e.altKey)return;
+  if(e.key==='/'){e.preventDefault();ctx.openPalette();return;}
+  if(e.key==='?'){e.preventDefault();openDialog('快捷键',h('dl',{class:'shortcut-list'},[['⌘K / Ctrl K / /','搜索'],['G T','今天'],['G R','待核对'],['G L','太史公曰'],['G S','来源'],['G Y','年表'],['G A','回望'],['J / K','下一步 / 上一步'],['O','查看原文'],['Y / E / N / S','确认 / 修改 / 不成立 / 稍后'],['Esc','关闭']].map(([key,label])=>h('div',{},h('dt',{},h('kbd',{},key)),h('dd',{},label)))));return;}
+  const key=e.key.length===1?e.key.toLowerCase():'';if(key==='g'){gAt=Date.now();return;}if(gAt&&Date.now()-gAt<1000){gAt=0;const hash={t:'#/',r:'#/review',l:'#/lessons',s:'#/sources',y:'#/timeline',a:'#/atlas'}[key];if(hash){e.preventDefault();ctx.navigate(hash);}}
+});
 function render(force=false) {
   if(location.hash==='#main') {main.focus();return;}
   const legacy=redirectLegacy(location.hash, model.themes.map(t=>t.id));
   if(legacy) history.replaceState(null,'',legacy);
   const route=parse(location.hash), previous=ctx.route;
   ctx.route=route;
-  const same=previous?.page===route.page && (route.page!=='question' || previous.params.ideaId===route.params.ideaId);
+  const same=previous?.page===route.page && (route.page!=='question' || previous.params.ideaId===route.params.ideaId) && (route.page!=='theme' || previous.params.themeId===route.params.themeId);
   if(same && page?.update && !force) {page.update(route);shell?.update();return;}
   page?.destroy?.(); evidence.replaceChildren(); evidence.classList.remove('is-open');
-  page=route.page==='question' ? renderQuestion(ctx,route) : route.page==='today' ? renderToday(ctx,route) : route.page==='review' ? renderReview(ctx,route) : {element:h('article',{},h('h1',{tabindex:'-1'},'资料'))};
+  const renderers={question:renderQuestion,today:renderToday,review:renderReview,theme:renderTheme,lessons:renderLessons,sources:renderSources,timeline:renderTimeline};
+  page=renderers[route.page]?.(ctx,route) ?? {element:h('article',{},h('h1',{tabindex:'-1'},'资料'))};
   main.replaceChildren(page.element);
   if(page.evidence) evidence.append(page.evidence);
   shell?.update();
@@ -49,5 +69,6 @@ function render(force=false) {
 }
 shell=mountShell(ctx);
 window.addEventListener('hashchange',()=>render());
-window.addEventListener('keydown',e=>{if(e.target.closest('input,textarea,[contenteditable="true"]') || e.metaKey || e.ctrlKey || e.altKey)return;page?.onKey?.(e);});
+window.addEventListener('keydown',e=>{if(!(e.target instanceof Element)||e.target.closest('input,textarea,[contenteditable="true"]') || e.metaKey || e.ctrlKey || e.altKey)return;page?.onKey?.(e);});
+window.addEventListener('keydown',e=>{if(e.key!=='Escape'||e.defaultPrevented||document.querySelector('.modal-backdrop'))return;ctx.escape?.(e);});
 render();
