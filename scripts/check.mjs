@@ -192,6 +192,7 @@ for (const file of [
   "test-lod.mjs",
   "test-perf-budget.mjs",
   "test-effects-perf.mjs",
+  "test-search.mjs",
 ]) {
   const script = fileURLToPath(new URL(file, import.meta.url));
   const run = spawnSync(process.execPath, [script], { encoding: "utf8" });

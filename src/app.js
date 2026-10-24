@@ -12,9 +12,25 @@ import { parallaxShift } from "./parallax.js";
 import { createPopover } from "./popover.js";
 import { createRain } from "./rain.js";
 import { backOneLevel, buildHash, parseHash, divesIn } from "./route.js";
+import {
+  createHoverPreview,
+  cuePanDelta,
+  mainlineMove,
+  offscreenCues,
+  previewContent,
+} from "./scene.js";
+import { createSearchController } from "./search.js";
 import { createScene, nodeVisual } from "./scene.js";
 import { createStars } from "./stars.js";
 import { createReplay } from "./replay.js";
+
+export function applyMainlineSelection({ state, node, route, history, inspect, select }) {
+  state.selectedId = node.id;
+  state.route = route;
+  history.replaceState(null, "", buildHash(route));
+  if (state.popover) inspect(node);
+  else select(node);
+}
 
 export function startApp() {
   const el = {
@@ -42,6 +58,11 @@ export function startApp() {
     zoomIn: document.getElementById("zoom-in"),
     zoomOut: document.getElementById("zoom-out"),
     zoomReset: document.getElementById("zoom-reset"),
+    searchOpen: document.getElementById("search-open"),
+    cues: document.getElementById("offscreen-cues"),
+    preview: document.getElementById("hover-preview"),
+    help: document.getElementById("help-layer"),
+    helpClose: document.getElementById("help-close"),
   };
 
   const graph = loadGraph();
@@ -70,7 +91,7 @@ export function startApp() {
     tagsLayer: el.tags,
     camera,
     onActivate: activateNode,
-    onHoverChange: () => {},
+    onHoverChange: (id) => hoverPreview.enter(id),
   });
   // lessons.js 缺失时这里什么都不画，其余页面不受影响。
   // 天秤铺在画布背景上，不跟链条走；lessons.js 缺失时这里什么都不画。
@@ -102,6 +123,27 @@ export function startApp() {
   const replay = createReplay({ host: el.bottomBar, onSelect: selectReplayStep });
   injectLegend();
 
+  // Search owns the earliest capture-phase keydown so Esc closes it before
+  // replay, focus mode or the popover can react to the same key.
+  const search = createSearchController({
+    graph,
+    document,
+    window,
+    root: el.app,
+    onNavigate: (route) => navigate(route),
+    isBlocked: () => helpOpen(),
+  });
+  search.attach();
+
+  // 400ms total: scene waits 120ms before reporting the hover, then this waits
+  // the remaining 280ms. Touch never reaches onHoverChange, so the card stays hidden.
+  const hoverPreview = createHoverPreview({
+    onShow: showHoverPreview,
+    onHide: hideHoverPreview,
+  });
+
+  let helpReturnFocus = null;
+
   // 图例说明随第六期注入，index.html 保持稳定；图标 aria-hidden，文字承担语义。
   function injectLegend() {
     const legend = document.querySelector(".legend");
@@ -126,6 +168,174 @@ export function startApp() {
     renderChrome();
     if (played) scene.flashEdges(graph.edgesInto(step.id).map((edge) => edge.id));
     scene.setTimelineSelected(step?.id ?? null);
+  }
+
+  /**
+   * Move along the current idea's main line without going through applyRoute.
+   * applyRoute always opens the inspector for a step, so a closed popover would
+   * be forced open. Selection, hash and the timeline update here directly.
+   *
+   * The hash is replaced, not pushed: arrowing through a chain must not create
+   * one history entry per step. A conclusion has no route of its own, so End
+   * keeps the last step's hash and only selects the conclusion node.
+   */
+  function moveMainline(key) {
+    const { level, themeId, ideaId } = state.route;
+    if (level !== "idea" && level !== "step") return false;
+    const steps = graph.steps(themeId, ideaId);
+    const move = mainlineMove({
+      steps,
+      currentId: state.selectedId,
+      key,
+      portrait: layout?.portrait,
+      conclusionId: graph.conclusion(themeId, ideaId)?.id || null,
+      themeId,
+      ideaId,
+    });
+    if (!move) return false;
+    const node = graph.nodes.get(move.id);
+    if (!node) return false;
+    pauseReplay();
+    replaySelection = false;
+    hoverPreview.leave();
+    popover.clearStack();
+
+    applyMainlineSelection({
+      state, node, route: move.route, history,
+      inspect: () => openInspector(node, { keepPosition: true, element: scene.nodeElement(node.id) }),
+      select: applySelection,
+    });
+    renderChrome();
+    replay.syncSelected(node.type === "step" ? node.id : null);
+    scene.setTimelineSelected(node.type === "step" ? node.id : null);
+    scene.setLocated(node.id);
+    scene.nodeElement(node.id)?.focus({ preventScroll: true });
+    return true;
+  }
+
+  function showHoverPreview(nodeId) {
+    if (!el.preview) return;
+    const node = graph.nodes.get(nodeId);
+    if (!node || node.type !== "idea" || search.isOpen() || helpOpen()) {
+      hideHoverPreview();
+      return;
+    }
+    const content = previewContent(node, graph.nodes);
+    const anchor = scene.screenOf(nodeId);
+    if (!content || !anchor) {
+      hideHoverPreview();
+      return;
+    }
+    const recent = content.latest ? `${content.latest.slice(5, 7)}/${content.latest.slice(8, 10)}` : "—";
+    el.preview.innerHTML =
+      `<p class="hover-preview-title">${escapeHtml(content.title)}</p>` +
+      (content.summary ? `<p class="hover-preview-summary">${escapeHtml(content.summary)}</p>` : "") +
+      `<p class="hover-preview-meta">${escapeHtml(`${content.steps} 步 · 最近 ${recent}`)}</p>`;
+    const area = camera.area;
+    const width = Math.min(260, Math.max(160, area.width - 32));
+    const left = Math.min(Math.max(12, anchor.x + 18), area.ox + area.width / 2 - width - 12);
+    const top = Math.min(Math.max(area.oy - area.height / 2 + 8, anchor.y + 14), area.oy + area.height / 2 - 120);
+    el.preview.style.width = `${width}px`;
+    el.preview.style.left = `${left.toFixed(1)}px`;
+    el.preview.style.top = `${top.toFixed(1)}px`;
+    el.preview.hidden = false;
+  }
+
+  function hideHoverPreview() {
+    if (!el.preview || el.preview.hidden) return;
+    el.preview.hidden = true;
+    el.preview.innerHTML = "";
+  }
+
+  function helpOpen() {
+    return Boolean(el.help && !el.help.hidden);
+  }
+
+  function openHelp() {
+    if (!el.help || helpOpen() || search.isOpen()) return;
+    helpReturnFocus = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
+    el.help.hidden = false;
+    el.helpClose?.focus({ preventScroll: true });
+  }
+
+  function closeHelp() {
+    if (!helpOpen()) return;
+    el.help.hidden = true;
+    const target = helpReturnFocus;
+    helpReturnFocus = null;
+    if (target && document.contains(target)) target.focus({ preventScroll: true });
+  }
+
+  function cueObstacles() {
+    const obstacles = [];
+    const add = (rect) => {
+      if (!rect || rect.width <= 0 || rect.height <= 0) return;
+      obstacles.push({ left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom });
+    };
+    add(el.topBar.getBoundingClientRect());
+    add(el.bottomBar.getBoundingClientRect());
+    if (popover.isOpen) add(popover.rect);
+    const stack = el.app.querySelector(".popover-stack");
+    if (stack && !stack.hidden) add(stack.getBoundingClientRect());
+    return obstacles;
+  }
+
+  function cueNodes() {
+    if (!layout) return [];
+    const nodes = [];
+    for (const placement of layout.placements.values()) {
+      if (!isCueCandidate(placement)) continue;
+      const screen = scene.screenOf(placement.id);
+      const projected = scene.projectedOf(placement.id) || screen;
+      if (!screen || !projected) continue;
+      nodes.push({
+        id: placement.id,
+        title: cueTitle(placement.node),
+        width: 132,
+        screen,
+        projected,
+      });
+    }
+    return nodes;
+  }
+
+  function isCueCandidate(placement) {
+    const { role, node } = placement;
+    if (role === "theme-away" || role === "core-away" || role === "idea-away") return true;
+    return layout.focus.some((entry) => entry.id === node.id);
+  }
+
+  function cueTitle(node) {
+    const label = node.shortTitle || node.label || "";
+    const chars = Array.from(label);
+    return chars.length > 8 ? `${chars.slice(0, 7).join("")}…` : label;
+  }
+
+  function syncOffscreenCues() {
+    if (!el.cues) return;
+    const cues = offscreenCues({ nodes: cueNodes(), area: camera.area, obstacles: cueObstacles() });
+    const signature = cues.map((cue) => `${cue.id}:${cue.direction}:${cue.x.toFixed(0)}:${cue.y.toFixed(0)}`).join("|");
+    if (signature === el.cues.dataset.signature) return;
+    el.cues.dataset.signature = signature;
+    el.cues.innerHTML = cues
+      .map((cue) => {
+        const glyph = { left: "◂", right: "▸", top: "▴", bottom: "▾" }[cue.direction];
+        const label = cue.direction === "left" || cue.direction === "top" ? `${glyph} ${cue.title}` : `${cue.title} ${glyph}`;
+        return `<button type="button" class="offscreen-cue offscreen-cue--${cue.direction}" data-id="${escapeHtml(
+          cue.id
+        )}" style="left:${cue.x.toFixed(1)}px;top:${cue.y.toFixed(1)}px" aria-label="移到 ${escapeHtml(
+          cue.title
+        )}">${escapeHtml(label)}</button>`;
+      })
+      .join("");
+  }
+
+  function panToCue(nodeId) {
+    const projected = scene.projectedOf(nodeId);
+    if (!projected) return;
+    const { dx, dy } = cuePanDelta({ point: projected }, camera.area);
+    camera.panBy(dx, dy);
+    if (!state.motion) camera.snap();
   }
 
   function pauseReplay() {
@@ -508,6 +718,14 @@ export function startApp() {
     if (action === "open-step") {
       const [themeId, ideaId, stepId] = value.split("/");
       navigate({ level: "step", themeId, ideaId, stepId });
+      return;
+    }
+    if (action === "step-prev") {
+      moveMainline(layout?.portrait ? "ArrowUp" : "ArrowLeft");
+      return;
+    }
+    if (action === "step-next") {
+      moveMainline(layout?.portrait ? "ArrowDown" : "ArrowRight");
     }
   }
 
@@ -840,12 +1058,41 @@ export function startApp() {
               .join("")}</ul>`
           : paragraph("这一步没有引用记录。", "popover-hint")) +
         relatedSection,
-      actions: sources.length
-        ? `<button type="button" class="popover-btn" data-action="${
-            expanded ? "collapse-sources" : "expand-sources"
-          }">${expanded ? "收起来源节点" : `在画布展开来源 (${sources.length})`}</button>`
-        : "",
+      actions:
+        stepActions(node, sources.length, expanded),
     };
+  }
+
+  /**
+   * Step popovers carry the main line on the bottom of the inspector so a
+   * touch user can keep reading without hunting for the next node.
+   * @param {any} node
+   * @param {number} sourceCount
+   * @param {boolean} expanded
+   */
+  function stepActions(node, sourceCount, expanded) {
+    const steps = graph.steps(node.themeId, node.ideaId);
+    const at = steps.findIndex((step) => step.id === node.id);
+    const conclusion = graph.conclusion(node.themeId, node.ideaId);
+    const previous = at > 0 ? steps[at - 1] : null;
+    const next = at >= 0 && at < steps.length - 1 ? steps[at + 1] : at === steps.length - 1 ? conclusion : null;
+    const buttons = [];
+    if (sourceCount) {
+      buttons.push(
+        `<button type="button" class="popover-btn" data-action="${
+          expanded ? "collapse-sources" : "expand-sources"
+        }">${expanded ? "收起来源节点" : `在画布展开来源 (${sourceCount})`}</button>`
+      );
+    }
+    buttons.push(
+      `<button type="button" class="popover-btn popover-btn--step" data-action="step-prev"${
+        previous ? "" : " disabled"
+      }>${previous ? "上一步" : "已是起点"}</button>`,
+      `<button type="button" class="popover-btn popover-btn--step" data-action="step-next"${
+        next ? "" : " disabled"
+      }>${next?.type === "conclusion" ? "当前理解" : next ? "下一步" : "已是末步"}</button>`
+    );
+    return buttons.join("");
   }
 
   // ------------------------------------------------------------------ gestures
@@ -950,6 +1197,18 @@ export function startApp() {
     fitCamera();
   });
 
+  el.searchOpen?.addEventListener("click", () => search.open());
+  el.cues?.addEventListener("click", (event) => {
+    const cue = event.target.closest("[data-id]");
+    if (!cue) return;
+    event.stopPropagation();
+    panToCue(cue.dataset.id);
+  });
+  el.helpClose?.addEventListener("click", closeHelp);
+  el.help?.addEventListener("click", (event) => {
+    if (event.target === el.help) closeHelp();
+  });
+
   el.back.addEventListener("click", () => navigate(backOneLevel(state.route)));
   el.breadcrumb.addEventListener("click", (event) => {
     const crumb = event.target.closest(".crumb");
@@ -1007,6 +1266,15 @@ export function startApp() {
   });
 
   window.addEventListener("keydown", (event) => {
+    if (helpOpen()) {
+      if (event.key === "Escape") closeHelp();
+      if (event.key === "Tab") {
+        event.preventDefault();
+        el.helpClose?.focus({ preventScroll: true });
+      }
+      event.stopImmediatePropagation();
+      return;
+    }
     if (event.key === "Escape" && replay.playing) {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -1041,6 +1309,22 @@ export function startApp() {
       return;
     }
     if (event.target.closest("input, textarea")) return;
+    if (event.key === "?" && !event.metaKey && !event.ctrlKey && !event.altKey && !event.repeat) {
+      event.preventDefault();
+      openHelp();
+      return;
+    }
+    if (
+      (state.route.level === "idea" || state.route.level === "step") &&
+      ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key) &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !event.repeat
+    ) {
+      if (moveMainline(event.key)) event.preventDefault();
+      return;
+    }
     if (event.key === "f" || event.key === "F") {
       if (event.metaKey || event.ctrlKey || event.altKey || event.repeat || event.isComposing) return;
       toggleFocus();
@@ -1136,6 +1420,7 @@ export function startApp() {
     applyParallax();
     meteors.frame(dt, state.motion);
     syncPopoverAnchor();
+    syncOffscreenCues();
     scheduleLoop();
   }
   scheduleLoop();

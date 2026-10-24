@@ -30,6 +30,18 @@
       <div class="top-actions">
         <span class="status-line" id="status-line"></span>
         <span class="sample-hint" id="sample-hint" hidden>示例数据</span>
+        <button
+          type="button"
+          class="chip chip--icon chip--search"
+          id="search-open"
+          aria-label="搜索"
+          title="搜索（/ 或 Ctrl/⌘ K）"
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <circle cx="7" cy="7" r="4.4" />
+            <path d="M10.4 10.4 14 14" />
+          </svg>
+        </button>
         <button type="button" class="chip" id="motion-toggle" aria-pressed="false">动效 开</button>
         <button type="button" class="chip" id="copy-link" aria-live="polite">复制链接</button>
         <a href="https://aikevin.dpdns.org/" class="chip chip--blog">返回博客</a>
@@ -68,6 +80,9 @@
       <div class="nodes" id="nodes" role="group" aria-label="大脑、问题与思考步骤"></div>
     </main>
 
+    <div class="offscreen-cues" id="offscreen-cues" role="group" aria-label="画面外节点"></div>
+    <div class="hover-preview" id="hover-preview" hidden aria-hidden="true"></div>
+
     <aside class="popover" id="popover" hidden tabindex="-1" role="dialog" aria-labelledby="popover-title">
       <header class="popover-handle" id="popover-handle">
         <h2 class="popover-title" id="popover-title"></h2>
@@ -95,8 +110,28 @@
       </div>
     </footer>
 
-    <div class="intro" id="intro-overlay" hidden>
-      <svg class="intro-brain" id="intro-brain" viewBox="-110 -110 220 220" aria-hidden="true"></svg>
+    <div class="help-layer" id="help-layer" hidden>
+      <div class="help-panel" role="dialog" aria-modal="true" aria-labelledby="help-title">
+        <header class="help-head">
+          <h2 class="help-title" id="help-title">快捷键</h2>
+          <button type="button" class="popover-close" id="help-close" aria-label="关闭快捷键说明">
+            <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M1 1 L11 11 M11 1 L1 11" /></svg>
+          </button>
+        </header>
+        <dl class="help-list">
+          <div><dt><kbd>/</kbd> <span>或</span> <kbd>Ctrl/⌘ K</kbd></dt><dd>搜索主题、问题、步骤和来源</dd></div>
+          <div><dt><kbd>←</kbd> <kbd>→</kbd><span class="help-portrait">竖屏 <kbd>↑</kbd> <kbd>↓</kbd></span></dt><dd>沿问题主线移动，浮框跟随</dd></div>
+          <div><dt><kbd>Home</kbd> <kbd>End</kbd></dt><dd>跳到起点 / 当前理解</dd></div>
+          <div><dt><kbd>F</kbd></dt><dd>聚焦当前问题路径</dd></div>
+          <div><dt><kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd></dt><dd>放大 / 缩小 / 复位</dd></div>
+          <div><dt><kbd>Esc</kbd></dt><dd>关闭搜索、浮框或返回上一层</dd></div>
+          <div><dt><kbd>?</kbd></dt><dd>打开这份说明</dd></div>
+        </dl>
+        <p class="help-foot">输入框聚焦时不会触发画布快捷键。</p>
+      </div>
+    </div>
+
+    <div class="intro" id="intro-overlay" hidden>      <svg class="intro-brain" id="intro-brain" viewBox="-110 -110 220 220" aria-hidden="true"></svg>
       <div class="intro-caption" aria-hidden="true">
         <span class="intro-line">SYSTEM / PERSONAL NEURAL SPACE</span>
         <strong>CYBER <em>BRAIN</em></strong>

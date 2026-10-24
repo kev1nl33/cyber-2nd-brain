@@ -322,7 +322,13 @@ test("scene initializes visual stats and keeps exactly one timeline selection", 
     setAttribute(k, v) { this.attrs[k] = v; }
     removeAttribute(k) { delete this.attrs[k]; }
     addEventListener() {}
-    appendChild(el) { this.children.push(el); }
+    appendChild(el) {
+      el.parentNode = this;
+      const index = this.children.indexOf(el);
+      if (index >= 0) this.children.splice(index, 1);
+      this.children.push(el);
+    }
+    remove() { this.parentNode?.children.splice(this.parentNode.children.indexOf(this), 1); }
     querySelector() { return null; }
     set innerHTML(value) {
       this.html = value;
@@ -332,7 +338,11 @@ test("scene initializes visual stats and keeps exactly one timeline selection", 
     get childElementCount() { return this.children.length; }
   }
   const saved = { window: globalThis.window, document: globalThis.document };
-  globalThis.window = { matchMedia: () => ({ matches: false, addEventListener() {} }) };
+  globalThis.window = {
+    matchMedia: () => ({ matches: false, addEventListener() {} }),
+    cancelAnimationFrame() {},
+    requestAnimationFrame: (fn) => fn(),
+  };
   globalThis.document = { createElement: () => new Element(), createElementNS: () => new Element() };
   try {
     const nodesLayer = new Element(), edgesSvg = new Element();
@@ -355,5 +365,8 @@ test("scene initializes visual stats and keeps exactly one timeline selection", 
     assert.deepEqual(marks, ["", " is-selected"]);
     scene.setTimelineSelected(null);
     assert.equal(axis.innerHTML.includes("is-selected"), false);
+    const reversed = new Map([["b", placements.get("b")], ["a", placements.get("a")]]);
+    scene.setLayout({ placements: reversed }, []);
+    assert.deepEqual(nodesLayer.children.map((el) => el.dataset.id), ["b", "a"]);
   } finally { Object.assign(globalThis, saved); }
 });

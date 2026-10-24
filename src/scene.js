@@ -169,6 +169,292 @@ export function peripheralScreen(screen, area, radius, role = "theme-away") {
   };
 }
 
+/** Centre inset from the usable canvas; `area` is camera.area. */
+function insetBox(area, inset) {
+  return {
+    left: area.ox - area.width / 2 + inset,
+    top: area.oy - area.height / 2 + inset,
+    right: area.ox + area.width / 2 - inset,
+    bottom: area.oy + area.height / 2 - inset,
+  };
+}
+
+function rectsOverlap(a, b, gap = 0) {
+  return (
+    a.left < b.right + gap &&
+    a.right > b.left - gap &&
+    a.top < b.bottom + gap &&
+    a.bottom > b.top - gap
+  );
+}
+
+function cueSlots(span, step) {
+  const slots = [0];
+  const max = Math.max(1, Math.ceil(span / step) + 1);
+  for (let i = 1; i <= max; i += 1) {
+    slots.push(i * step);
+    slots.push(-i * step);
+  }
+  return slots;
+}
+
+function placeCue(node, area, obstacles, size, margin) {
+  const half = size / 2;
+  const halfWidth = Math.max(size, node.width || size) / 2;
+  const inset = Math.max(half, halfWidth) + margin;
+  const bounds = insetBox(area, inset);
+  if (bounds.right <= bounds.left || bounds.bottom <= bounds.top) return null;
+
+  const point = node.projected || node.screen;
+  const dx = point.x - area.ox;
+  const dy = point.y - area.oy;
+  const halfW = area.width / 2 - inset;
+  const halfH = area.height / 2 - inset;
+  if (halfW <= 0 || halfH <= 0) return null;
+  const tx = dx === 0 ? Infinity : halfW / Math.abs(dx);
+  const ty = dy === 0 ? Infinity : halfH / Math.abs(dy);
+  const t = Math.min(tx, ty);
+  if (!Number.isFinite(t)) return null;
+
+  const horizontal = tx <= ty;
+  const direction = horizontal ? (dx >= 0 ? "right" : "left") : dy >= 0 ? "bottom" : "top";
+  const edgeX = area.ox + dx * t;
+  const edgeY = area.oy + dy * t;
+  const span = horizontal ? bounds.bottom - bounds.top : bounds.right - bounds.left;
+  const slots = cueSlots(span, size + 4);
+
+  for (const delta of slots) {
+    const x = horizontal ? edgeX : edgeX + delta;
+    const y = horizontal ? edgeY + delta : edgeY;
+    if (x < bounds.left - 0.01 || x > bounds.right + 0.01) continue;
+    if (y < bounds.top - 0.01 || y > bounds.bottom + 0.01) continue;
+    const rect = { left: x - halfWidth, top: y - half, right: x + halfWidth, bottom: y + half };
+    if (obstacles.some((obstacle) => rectsOverlap(rect, obstacle, 4))) continue;
+    return {
+      id: node.id,
+      title: node.title,
+      direction,
+      x,
+      y,
+      rect,
+      point,
+      distance: node.distance,
+    };
+  }
+  return null;
+}
+
+/**
+ * Screen-edge arrows for nodes that are actually outside the usable canvas.
+ *
+ * Visibility is judged from the rendered `screen` position, so a peripheral
+ * theme clamped back into view never gets a misleading arrow. The arrow
+ * direction uses the unclamped world projection, pointing at where the node
+ * really is. Obstacles (bars, popover, stack) are avoided by sliding the cue
+ * along its edge; a cue with nowhere to sit is simply dropped.
+ *
+ * @param {{
+ *   nodes: {id:string,title:string,screen:{x:number,y:number},projected?:{x:number,y:number}}[],
+ *   area: {ox:number,oy:number,width:number,height:number},
+ *   obstacles?: {left:number,top:number,right:number,bottom:number}[],
+ *   limit?: number,
+ *   size?: number,
+ *   margin?: number
+ * }} options
+ */
+export function offscreenCues({
+  nodes = [],
+  area,
+  obstacles = [],
+  limit = 5,
+  size = 40,
+  margin = 8,
+} = {}) {
+  if (!area || !nodes.length) return [];
+  const left = area.ox - area.width / 2;
+  const right = area.ox + area.width / 2;
+  const top = area.oy - area.height / 2;
+  const bottom = area.oy + area.height / 2;
+  const visible = (point) =>
+    point && point.x >= left && point.x <= right && point.y >= top && point.y <= bottom;
+
+  const candidates = nodes
+    .filter((node) => node?.screen && !visible(node.screen))
+    .map((node) => {
+      const point = node.projected || node.screen;
+      return {
+        ...node,
+        point,
+        distance: Math.hypot(point.x - area.ox, point.y - area.oy),
+      };
+    })
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, Math.max(0, limit));
+
+  const placed = [];
+  const blocked = [...obstacles];
+  for (const node of candidates) {
+    const cue = placeCue(node, area, blocked, size, margin);
+    if (!cue) continue;
+    placed.push(cue);
+    blocked.push(cue.rect);
+  }
+  return placed;
+}
+
+/** Screen-space delta that brings a cue's target to the centre of the canvas. */
+export function cuePanDelta(cue, area) {
+  if (!cue?.point || !area) return { dx: 0, dy: 0 };
+  return { dx: area.ox - cue.point.x, dy: area.oy - cue.point.y };
+}
+
+/**
+ * Move the selection along a problem's main line. Horizontal layouts use
+ * ←/→; portrait layouts use ↑/↓. Home always returns to the first step and
+ * End to the conclusion. The route for a conclusion stays on the last step
+ * because the URL format has no conclusion level.
+ *
+ * @param {{
+ *   steps: any[],
+ *   currentId?: string|null,
+ *   key: string,
+ *   portrait?: boolean,
+ *   conclusionId?: string|null,
+ *   themeId?: string,
+ *   ideaId?: string,
+ * }} options
+ */
+export function mainlineMove({
+  steps = [],
+  currentId = null,
+  key,
+  portrait = false,
+  conclusionId = null,
+  themeId,
+  ideaId,
+} = {}) {
+  if (!steps.length) return null;
+  const last = steps[steps.length - 1];
+  const pick = (step) => ({
+    id: step.id,
+    kind: "step",
+    route: {
+      level: "step",
+      themeId: themeId || step.themeId,
+      ideaId: ideaId || step.ideaId,
+      stepId: step.stepId,
+    },
+  });
+  const conclusion = () =>
+    conclusionId
+      ? {
+          id: conclusionId,
+          kind: "conclusion",
+          route: {
+            level: "step",
+            themeId: themeId || last.themeId,
+            ideaId: ideaId || last.ideaId,
+            stepId: last.stepId,
+          },
+        }
+      : pick(last);
+
+  if (key === "Home") return pick(steps[0]);
+  if (key === "End") return conclusion();
+
+  const forward = portrait ? key === "ArrowDown" : key === "ArrowRight";
+  const backward = portrait ? key === "ArrowUp" : key === "ArrowLeft";
+  if (!forward && !backward) return null;
+
+  if (currentId === conclusionId && conclusionId) return backward ? pick(last) : null;
+  const current = steps.findIndex((step) => step.id === currentId);
+  if (current < 0) return forward ? pick(steps[0]) : null;
+  if (forward) {
+    if (current < steps.length - 1) return pick(steps[current + 1]);
+    return conclusionId ? conclusion() : null;
+  }
+  if (current === 0) return null;
+  return pick(steps[current - 1]);
+}
+
+/** First sentence of an idea summary, capped so the hover card stays small. */
+function firstSentence(text) {
+  const sentence = String(text || "").split(/[。！？；;]/u)[0].trim();
+  const chars = Array.from(sentence);
+  return chars.length > 48 ? `${chars.slice(0, 47).join("")}…` : sentence;
+}
+
+/**
+ * Hover preview content for an idea. Read-only derived data; never touches the
+ * source text of a step or source node.
+ */
+export function previewContent(node, nodes = new Map(), now = new Date()) {
+  if (!node || node.type !== "idea") return null;
+  const visual = nodeVisual(node, nodes, now);
+  return {
+    title: node.label || "",
+    summary: firstSentence(node.summary),
+    steps: visual.steps || 0,
+    latest: visual.latest || node.updated || "",
+  };
+}
+
+export const HOVER_PREVIEW_DELAY_MS = 280;
+
+/**
+ * The scene already waits 120ms before reporting a hover; this adds the other
+ * 280ms so a preview appears after 400ms of intent. Leaving cancels the timer
+ * and hides immediately. Timers are injectable for deterministic tests.
+ */
+export function createHoverPreview({
+  delay = HOVER_PREVIEW_DELAY_MS,
+  onShow,
+  onHide,
+  setTimer = (fn, ms) => setTimeout(fn, ms),
+  clearTimer = (timer) => clearTimeout(timer),
+} = {}) {
+  let timer = null;
+  let pendingId = null;
+  let shownId = null;
+
+  const api = {
+    enter(nextId) {
+      if (!nextId) {
+        api.leave();
+        return;
+      }
+      if (pendingId === nextId && (timer !== null || shownId === nextId)) return;
+      api.leave();
+      pendingId = nextId;
+      timer = setTimer(() => {
+        timer = null;
+        if (!pendingId) return;
+        shownId = pendingId;
+        onShow?.(shownId);
+      }, delay);
+    },
+    leave() {
+      if (timer !== null) clearTimer(timer);
+      timer = null;
+      pendingId = null;
+      if (shownId !== null) {
+        shownId = null;
+        onHide?.();
+      }
+    },
+    get pendingId() {
+      return pendingId;
+    },
+    get shownId() {
+      return shownId;
+    },
+    get delay() {
+      return delay;
+    },
+  };
+  return api;
+}
+
 function artMarkup(placement, nodes = new Map()) {
   const { node, detail, role } = placement;
   if (node.type === "core" || node.type === "theme") {
@@ -315,10 +601,11 @@ let pendingGrow = null;
     });
     el.addEventListener("pointerenter", (event) => {
       clearHover();
-      if (noHover.matches || event.pointerType === "touch" || event.buttons || hoverSuspended || selection.selectedId) return;
+      const previewable = placement.node.type === "idea";
+      if (noHover.matches || event.pointerType === "touch" || event.buttons || hoverSuspended || (selection.selectedId && !previewable)) return;
       hoverTimer = setTimeout(() => {
         hoverTimer = null;
-        if (hoverSuspended || noHover.matches || selection.selectedId || !placements.has(placement.id)) return;
+        if (hoverSuspended || noHover.matches || (selection.selectedId && !previewable) || !placements.has(placement.id)) return;
         setHover(placement.id);
       }, 120);
     });
@@ -413,6 +700,11 @@ let pendingGrow = null;
       if (instant) view.cur = { x: placement.x, y: placement.y, size: placement.size };
     }
 
+    // Reading order follows layout insertion, which is step index order on a
+    // main line. Reordering after updates keeps existing nodes in that order
+    // too, instead of leaving a reused node where it happened to be created.
+    for (const id of placements.keys()) nodesLayer.appendChild(rendered.get(id).el);
+
     for (const [id, view] of rendered) {
       if (placements.has(id)) continue;
       if (instant) {
@@ -469,7 +761,7 @@ let pendingGrow = null;
 
   function removeNode(id, view) {
     clearTimeout(view.removeTimer);
-    cancelAnimationFrame(view.enterRaf);
+    globalThis.cancelAnimationFrame?.(view.enterRaf);
     for (const timer of view.el.growTimers || []) clearTimeout(timer);
     view.el.remove();
     rendered.delete(id);
@@ -791,7 +1083,11 @@ let pendingGrow = null;
         if (Math.abs(targetSize - view.cur.size) > 0.2) busy = true;
       }
 
-      const screen = camera.toScreen(view.cur);
+      // Keep the true world projection before any peripheral clamping or orbit
+      // override. Offscreen cues point at where the node actually is, while
+      // visibility is judged from `screen` (what the user can really see).
+      const projected = camera.toScreen(view.cur);
+      const screen = { x: projected.x, y: projected.y };
       if (p.orbitAngle !== null) {
         const area = camera.area;
         const radius = Math.hypot(area.width, area.height) * 0.42;
@@ -809,6 +1105,7 @@ let pendingGrow = null;
       }
       const px = artPx(p, view.cur.size);
       view.screen = screen;
+      view.projected = projected;
       view.radius = (px / 2) * (ANCHOR[p.node.type] ?? 0.6);
       // 画布静止时同一帧反复写相同字符串没有意义，按值缓存跳过 style 写入。
       view.applied ??= { transform: null, art: null, z: null };
@@ -927,6 +1224,8 @@ let pendingGrow = null;
     nodeView: (id) => rendered.get(id),
     nodeElement: (id) => rendered.get(id)?.el || null,
     screenOf: (id) => rendered.get(id)?.screen || null,
+    /** Unclamped world projection; used to point offscreen cues at the real node. */
+    projectedOf: (id) => rendered.get(id)?.projected || null,
     radiusOf: (id) => rendered.get(id)?.radius || 0,
     glowTarget() {
       const center = centerOf(placements);
