@@ -16,7 +16,7 @@ export function renderToday(ctx) {
   const {model}=ctx, queue=reviewQueue(model,ctx.overlay), lesson=dailyLesson(model,model.today), stale=staleIdea(model);
   const recent=[...model.steps].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5), months=monthlyCounts(model);
   const panel=(title,cls,...children)=>h('section',{class:`today-panel ${cls}`},h('h2',{},title),...children);
-  const experience=panel('今日经验','today-lesson',lesson?renderLessonCard(lesson,{model,overlay:ctx.overlay,variant:'full'}):h('p',{class:'muted'},'还没有经验数据。'));
+  const experience=panel('今日经验','today-lesson',lesson?renderLessonCard(lesson,{model,overlay:ctx.overlay,variant:'full',showUses:false,pendingCorner:true}):h('p',{class:'muted'},'还没有经验数据。'));
   if(lesson) {
     const patterns=lesson.patternIds.map(id=>model.byId.pattern.get(id)).filter(Boolean);
     if(patterns.length) experience.querySelector('.lesson-card__meta')?.prepend(h('span',{},patterns.map(p=>`${p.name} · ${p.level}`).join(' · ')));

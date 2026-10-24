@@ -76,7 +76,7 @@ ctx.openCopy=()=>openDialog('复制链接',h('input',{value:location.href,readon
 ctx.copyLink=async()=>{try{await navigator.clipboard.writeText(location.href);showToast('已复制');}catch{ctx.openCopy();}};
 const destinations=[['今天','#/'],['待核对','#/review'],['年表','#/timeline'],['回望','#/atlas'],['太史公曰','#/lessons'],['来源','#/sources']];
 ctx.openPalette=()=>openPalette(ctx,[...destinations.map(([name,hash],i)=>({id:`go-${i}`,name,run:()=>ctx.navigate(hash)})),{id:'theme',name:'切换深色/浅色',run:()=>ctx.prefs.toggleTheme()},{id:'motion',name:'切换动效',run:()=>ctx.prefs.toggleMotion()},{id:'export',name:'导出核对记录',run:ctx.exportReview},{id:'copy',name:'复制当前链接',run:ctx.copyLink}]);
-ctx.openMenu=type=>{const items=type==='questions'?model.themes.map(t=>[t.label,`#/t/${t.id}`]):destinations.slice(2);const content=h('div',{class:'menu-links'});const modal=openDialog(type==='questions'?'问题':'更多',content);for(const [label,hash]of items)content.append(h('a',{href:hash,onclick:()=>modal.close()},label));if(type!=='questions')content.append(h('button',{onclick:()=>ctx.prefs.toggleTheme()},'深色'),h('button',{onclick:()=>ctx.prefs.toggleMotion()},'动效'),h('a',{href:'https://aikevin.dpdns.org/'},'返回博客'));};
+ctx.openMenu=type=>{const items=type==='questions'?model.themes.map(t=>[t.label,`#/t/${t.id}`]):destinations.slice(2);const content=h('div',{class:'menu-links'});const modal=openDialog(type==='questions'?'问题':'更多',content);for(const [label,hash]of items)content.append(h('a',{href:hash,onclick:()=>modal.close()},label));if(type!=='questions'){const theme=h('button',{onclick:()=>{ctx.prefs.toggleTheme();theme.textContent=ctx.prefs.theme==='dark'?'深色':'浅色';}},ctx.prefs.theme==='dark'?'深色':'浅色');const motion=h('button',{onclick:()=>{ctx.prefs.toggleMotion();motion.textContent=`动效 ${ctx.prefs.motion==='on'?'开':'关'}`;}},`动效 ${ctx.prefs.motion==='on'?'开':'关'}`);content.append(theme,motion,h('a',{href:'https://aikevin.dpdns.org/'},'返回博客'));}};
 let gAt=0;
 window.addEventListener('keydown',e=>{
   const editable=e.target instanceof Element && e.target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])');
@@ -100,6 +100,7 @@ function render(force=false) {
   page?.destroy?.(); evidence.replaceChildren(); evidence.classList.remove('is-open');
   const renderers={question:renderQuestion,today:renderToday,review:renderReview,theme:renderTheme,lessons:renderLessons,sources:renderSources,timeline:renderTimeline,atlas:renderAtlas};
   page=valid ? renderers[route.page]?.(ctx,route) ?? {element:h('article',{},h('h1',{tabindex:'-1'},'资料'))} : renderMissingRoute();
+  page.element.classList.add('page');
   main.replaceChildren(page.element);
   if(page.evidence) evidence.append(page.evidence);
   shell?.update();

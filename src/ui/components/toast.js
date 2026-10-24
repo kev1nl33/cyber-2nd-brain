@@ -12,7 +12,7 @@ export function showToast(message, { label, onAction, duration = 5000 } = {}) {
   const element = h('div', { class: 'toast' }, h('span', { class: 'toast__message' }, message));
   const close = () => {
     if (closed) return;
-    closed = true; clearTimeout(timer); element.remove();
+    closed = true; clearTimeout(timer);element.classList.add('is-exiting');const delay=document.documentElement.dataset.motion==='off'?0:180;if(delay)setTimeout(()=>element.remove(),delay);else element.remove();
     const index = active.indexOf(close); if (index >= 0) active.splice(index, 1);
   };
   if (label && onAction) element.append(h('button', { class: 'toast__action button button--text', type: 'button', onclick: () => { close(); onAction(); } }, label));
