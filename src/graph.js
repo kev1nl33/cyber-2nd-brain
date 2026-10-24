@@ -161,6 +161,7 @@ export function loadGraph() {
           ideaId: idea.id,
           label: "阶段理解",
           summary: idea.summary,
+          shortTitle: shortConclusion(idea.shortTitle || idea.summary),
           status: idea.status,
           unconfirmed,
           evidence: steps.map((s) => ({ title: s.title, date: s.date, connection: s.connection })),
@@ -324,4 +325,11 @@ function resolveRef(refId, recordMap, sourceMap, missingRefs, stepId) {
     origin: "missing",
     resolved: false,
   };
+}
+
+/** 短标题只派生到图谱内存，完整摘要仍供浮框读取。 */
+function shortConclusion(text) {
+  const sentence = String(text).split(/[。；;]/u)[0].trim();
+  const chars = Array.from(sentence);
+  return chars.length > 16 ? `${chars.slice(0, 15).join("")}…` : sentence;
 }

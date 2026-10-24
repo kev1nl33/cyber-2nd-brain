@@ -16,6 +16,9 @@
   --panel: rgba(5, 14, 13, 0.92);
 
   /* 字号。取自现有使用的几个档位。 */
+  --fs-label-min: 12px;
+  --fs-step: 13px;
+  --fs-legend: 11px;
   --fs-kicker: 9.5px;
   --fs-meta: 10.5px;
   --fs-small: 11px;

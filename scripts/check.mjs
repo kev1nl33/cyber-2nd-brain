@@ -148,6 +148,7 @@ for (const themeNode of graph.themes()) {
 // ------------------------------------------------- zero-dependency unit tests
 
 for (const file of [
+  "test-contrast.mjs",
   "test-check-suite.mjs",
   "test-gitignore.mjs",
   "test-html-chrome.mjs",

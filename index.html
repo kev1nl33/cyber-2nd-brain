@@ -82,11 +82,11 @@
 
     <footer class="bottom-bar" aria-label="底栏">
       <div class="legend" aria-label="连线图例">
-        <span class="legend-item"><i class="legend-line legend-line--recorded" aria-hidden="true"></i>记录中的先后</span>
-        <span class="legend-item"><i class="legend-line legend-line--inferred" aria-hidden="true"></i>整理的关联 · 待确认</span>
-        <span class="legend-item"><i class="legend-line legend-line--source" aria-hidden="true"></i>来源引用</span>
-        <span class="legend-item"><i class="legend-dot legend-dot--warm" aria-hidden="true"></i>阶段理解</span>
-        <span class="legend-item"><i class="legend-star" aria-hidden="true"></i>可复用经验</span>
+        <span class="legend-item" title="记录中的先后" tabindex="0"><i class="legend-line legend-line--recorded" aria-hidden="true"></i><span class="legend-text">记录中的先后</span></span>
+        <span class="legend-item" title="整理的关联 · 待确认" tabindex="0"><i class="legend-line legend-line--inferred" aria-hidden="true"></i><span class="legend-text">整理的关联 · 待确认</span></span>
+        <span class="legend-item" title="来源引用" tabindex="0"><i class="legend-line legend-line--source" aria-hidden="true"></i><span class="legend-text">来源引用</span></span>
+        <span class="legend-item" title="阶段理解" tabindex="0"><i class="legend-dot legend-dot--warm" aria-hidden="true"></i><span class="legend-text">阶段理解</span></span>
+        <span class="legend-item" title="可复用经验" tabindex="0"><i class="legend-star" aria-hidden="true"></i><span class="legend-text">可复用经验</span></span>
       </div>
       <div class="view-controls">
         <button type="button" class="chip chip--icon" id="zoom-out" aria-label="缩小">−</button>
@@ -110,5 +110,17 @@
   <script src="./private-data/thoughts.js"></script>
   <script src="./private-data/lessons.js"></script>
   <script type="module" src="./src/main.js"></script>
+  <script type="module">
+    // 状态行收起后，末级面包屑仍提供完整状态说明。
+    const breadcrumb = document.getElementById("breadcrumb");
+    const status = document.getElementById("status-line");
+    const syncStatusTitle = () => {
+      const current = breadcrumb.querySelector(".is-current");
+      if (current) current.title = `${current.textContent} · ${status.textContent}`;
+    };
+    new MutationObserver(syncStatusTitle).observe(breadcrumb, { childList: true });
+    new MutationObserver(syncStatusTitle).observe(status, { childList: true, subtree: true, characterData: true });
+    syncStatusTitle();
+  </script>
 </body>
 </html>

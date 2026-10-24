@@ -178,7 +178,7 @@ let pendingGrow = null;
       );
     }
     if (node.type === "conclusion") {
-      return field("node-kicker", "阶段理解") + field("node-title", node.summary || node.label);
+      return field("node-kicker", "阶段理解") + field("node-title", node.shortTitle || node.label);
     }
     return field("node-kicker", "来源") + field("node-title", node.label);
   }
@@ -516,6 +516,18 @@ let pendingGrow = null;
   /** 按相机当前缩放切档，档位没变就不动 DOM。 */
   function syncLod() {
     const next = nextLod(camera.current.scale, lod);
+    // 同档位切换主题也会创建新标签，按当前 placement 补偿，不依赖切档。
+    for (const [id, placement] of placements) {
+      if (placement.node.type !== "idea") continue;
+      const el = rendered.get(id)?.el;
+      const title = el?.querySelector(".node-title");
+      if (!title) continue;
+      const chars = Array.from(placement.node.label);
+      const text = placement.role === "idea" && next === "far" && chars.length > 10
+        ? `${chars.slice(0, 10).join("")}…` : placement.node.label;
+      if (title.textContent !== text) title.textContent = text;
+      el.setAttribute("aria-label", ariaLabel(placement));
+    }
     if (next === lod) return;
     lod = next;
     if (!root) return;

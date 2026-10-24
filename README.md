@@ -105,6 +105,7 @@ node scripts/check-lessons.mjs
 单元测试基于 Node 内置的 `node:test`，零依赖、不读 `private-data/`，可单独运行：
 
 ```bash
+node scripts/test-contrast.mjs
 node scripts/test-check-suite.mjs
 node scripts/test-html-chrome.mjs
 node scripts/test-chrome-landmarks.mjs
