@@ -2,8 +2,26 @@ import { h } from '../ui/dom.js';
 import { PHASE_LABEL } from '../data/taxonomy.js';
 import { fmtLong, fmtShort, diffDays } from '../data/dates.js';
 import { renderEmpty } from '../ui/components/empty.js';
+import { openDialog } from '../ui/components/palette.js';
 
 const dayPx = 3;
+export function groupTimelineHits(points) {
+  const groups = [];
+  for (const point of points) {
+    const group = { left: point.x - 22, right: point.x + 22, top: point.y - 22, bottom: point.y + 22, items: [point] };
+    let index = 0;
+    while (index < groups.length) {
+      const other = groups[index];
+      if (group.left < other.right && group.right > other.left && group.top < other.bottom && group.bottom > other.top) {
+        group.left = Math.min(group.left, other.left); group.right = Math.max(group.right, other.right);
+        group.top = Math.min(group.top, other.top); group.bottom = Math.max(group.bottom, other.bottom);
+        group.items.push(...other.items); groups.splice(index, 1); index = 0;
+      } else index++;
+    }
+    groups.push(group);
+  }
+  return groups;
+}
 export function renderTimeline(ctx) {
   const { model } = ctx;
   const element = h('section', { class: 'timeline' });
@@ -16,7 +34,7 @@ export function renderTimeline(ctx) {
     const ordered = [...new Set(theme.ideaIds.map(id => model.byId.idea.get(id)).filter(idea => idea.stepKeys.length).map(idea => idea.id))].sort();
     const count = Math.min(7, Math.max(ordered.length, 1));
     const index = ordered.indexOf(idea.id);
-    return { count, offset: index < 0 ? 0.5 : (index + 0.5) / count };
+    return { count, offset: index < 0 ? 0.5 : (index % count + 0.5) / count };
   };
   function show(node, step) {
     const idea = model.byId.idea.get(step.ideaId);
@@ -64,10 +82,8 @@ export function renderTimeline(ctx) {
     }
     const lanes = columns.map((theme, index) => h('div', { class: 'timeline__lane', dataset: { themeId: theme.id } }));
     for (const item of positioned) {
-      const node = h('a', { class: 'timeline-dot', href: `#/q/${encodeURIComponent(item.step.ideaId)}/${encodeURIComponent(item.step.id)}`,
-        dataset: { phase: item.step.phase }, style: { top: `${item.day * dayPx}px`, left: `${item.offset * 100}%` },
-        'aria-label': `${item.step.date} ${model.byId.idea.get(item.step.ideaId)?.title ?? ''}：${item.step.title}`,
-        onfocus: () => show(node, item.step), onblur: () => hide(node), onmouseenter: () => show(node, item.step), onmouseleave: () => hide(node) });
+      const node = h('span', { class: 'timeline-dot', 'aria-hidden': 'true',
+        dataset: { phase: item.step.phase }, style: { top: `${item.day * dayPx}px`, left: `${item.offset * 100}%` } });
       lanes[item.lane].append(node);
       item.node = node;
     }
@@ -85,7 +101,34 @@ export function renderTimeline(ctx) {
         }
       }
     }
-    desktop.replaceChildren(header, h('div', { class: 'timeline__grid', style: { height: `${totalDays * dayPx}px` } }, months, h('div', { class: 'timeline__lanes', style: { gridTemplateColumns: `repeat(${columns.length}, minmax(0,1fr))` } }, marks, lanes)));
+    const hitLayer = h('div', { class: 'timeline__hits' });
+    const chartLanes = h('div', { class: 'timeline__lanes', style: { gridTemplateColumns: `repeat(${columns.length}, minmax(0,1fr))` } }, marks, lanes, hitLayer);
+    desktop.replaceChildren(header, h('div', { class: 'timeline__grid', style: { height: `${totalDays * dayPx}px` } }, months, chartLanes));
+    const describe = item => `${item.step.date} ${model.byId.idea.get(item.step.ideaId)?.title ?? ''}：${item.step.title}`;
+    const href = item => `#/q/${encodeURIComponent(item.step.ideaId)}/${encodeURIComponent(item.step.id)}`;
+    function updateHits() {
+      if (!chartLanes.clientWidth) return;
+      const width = chartLanes.clientWidth;
+      const points = positioned.map(item => ({ ...item, x: (item.lane + item.offset) * width / columns.length, y: item.day * dayPx }));
+      hitLayer.replaceChildren(...groupTimelineHits(points).map(group => {
+        const items = group.items.sort((a, b) => a.day - b.day || a.step.key.localeCompare(b.step.key));
+        const first = items[0];
+        const node = h('a', { class: 'timeline-hit', href: href(first),
+          style: { left: `${group.left}px`, top: `${group.top}px`, width: `${group.right - group.left}px`, height: `${group.bottom - group.top}px` },
+          'aria-label': items.map(describe).join('；'),
+          ...(items.length > 1 ? { 'aria-haspopup': 'dialog' } : {}),
+          onfocus: () => show(first.node, first.step), onblur: () => hide(node),
+          onmousemove: event => { const box = chartLanes.getBoundingClientRect(); const nearest = items.reduce((a, b) => Math.hypot(event.clientX-box.left-a.x,event.clientY-box.top-a.y) <= Math.hypot(event.clientX-box.left-b.x,event.clientY-box.top-b.y) ? a : b); show(nearest.node, nearest.step); },
+          onmouseleave: () => hide(node),
+          onclick: event => { if (items.length < 2) return; event.preventDefault(); hide(node); const dialog = openDialog('年表', h('div', { class: 'timeline-choices' }, items.map(item => h('a', { href: href(item), onclick: () => dialog.close() }, describe(item))))); }
+        });
+        return node;
+      }));
+    }
+    const observer = new ResizeObserver(updateHits);
+    observer.observe(chartLanes);
+    cleanup = () => observer.disconnect();
+    updateHits();
     const monthKey = date => date.slice(0, 7);
     const byMonth = new Map();
     for (const step of [...steps].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.key.localeCompare(b.key)))) {
@@ -107,7 +150,8 @@ export function renderTimeline(ctx) {
       mobile.append(section);
     }
   }
+  let cleanup = () => {};
   draw();
-  return { element, update: () => true, destroy() { tooltip.hidden = true; } };
+  return { element, update: () => true, destroy() { cleanup(); tooltip.hidden = true; } };
 }
 export default renderTimeline;
