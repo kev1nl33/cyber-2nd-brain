@@ -70,3 +70,5 @@ test("回放控制器：0.8s 节奏、暂停续播、末尾重播、seek、减�
   replay.setContext(null, []);
   assert.equal(replay.play(), false);
 });
+
+import "./check-replay.mjs";

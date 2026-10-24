@@ -7,12 +7,12 @@ import { createBackground } from "./background.js";
 import { createCamera } from "./camera.js";
 import { loadGraph, relatedIdeas } from "./graph.js";
 import { runIntro } from "./intro.js";
-import { boundsOf, computeLayout } from "./layout.js";
+import { boundsOf, computeLayout, timelineSteps } from "./layout.js";
 import { parallaxShift } from "./parallax.js";
 import { createPopover } from "./popover.js";
 import { createRain } from "./rain.js";
 import { backOneLevel, buildHash, parseHash, divesIn } from "./route.js";
-import { createScene } from "./scene.js";
+import { createScene, nodeVisual } from "./scene.js";
 import { createStars } from "./stars.js";
 import { createReplay } from "./replay.js";
 
@@ -100,6 +100,17 @@ export function startApp() {
   let pendingActivation = null;
   let replaySelection = false;
   const replay = createReplay({ host: el.bottomBar, onSelect: selectReplayStep });
+  injectLegend();
+
+  // 图例说明随第六期注入，index.html 保持稳定；图标 aria-hidden，文字承担语义。
+  function injectLegend() {
+    const legend = document.querySelector(".legend");
+    if (!legend || legend.querySelector(".legend-ring")) return;
+    legend.insertAdjacentHTML(
+      "beforeend",
+      `<span class="legend-item" title="问题：分段 = 步骤数，金色 = 已有阶段理解" tabindex="0"><i class="legend-ring" aria-hidden="true"></i><span class="legend-text">问题：分段 = 步骤数</span></span>`
+    );
+  }
 
   function selectReplayStep(step, played) {
     replaySelection = true;
@@ -114,6 +125,7 @@ export function startApp() {
     history.replaceState(null, "", buildHash(route));
     renderChrome();
     if (played) scene.flashEdges(graph.edgesInto(step.id).map((edge) => edge.id));
+    scene.setTimelineSelected(step?.id ?? null);
   }
 
   function pauseReplay() {
@@ -167,6 +179,12 @@ export function startApp() {
     );
 
     scene.setLayout(layout, graph.edges, { collapse, nodes: graph.nodes, growInto });
+    // 时间轴只画有效日期，与回放时间条共用同一套排序；选中点同步点亮。
+    scene.setTimeline(
+      (level === "idea" || level === "step") && ideaId
+        ? timelineSteps(graph.steps(themeId, ideaId), replay.steps[replay.index]?.id ?? null)
+        : null
+    );
     // Only level changes, reset and resize refit: selecting a node or
     // expanding a source branch must leave the camera exactly where it is.
     if (refit) {
@@ -550,6 +568,7 @@ export function startApp() {
 
     render({ refit: structuralChange || force, collapse: structuralChange, growInto });
     replay.syncSelected(state.selectedId);
+    scene.setTimelineSelected(replay.steps[replay.index]?.id ?? null);
     // 路由本身就是一次定位：URL 或键盘跳到的那一层，目标节点的文字不能被缩放藏掉。
     scene.setLocated(locatedNodeId(route));
 
@@ -715,7 +734,7 @@ export function startApp() {
       const ideas = graph.ideas(node.themeId);
       return {
         title: node.label,
-        kicker: meta([node.code, node.latin, node.latest ? `最近 ${node.latest}` : ""]),
+        kicker: meta([node.code, node.latin, nodeVisual(node, graph.nodes).note || ""]),
         body:
           paragraph(node.description || "") +
           `<ul class="popover-list">${ideas
@@ -732,12 +751,17 @@ export function startApp() {
       };
     }
     if (node.type === "idea") {
+      const v = nodeVisual(node, graph.nodes);
+      const recent = v.latest ? `最近 ${v.latest.slice(5, 7)}/${v.latest.slice(8, 10)}` : node.updated;
       return {
         title: node.label,
-        kicker: meta(["问题", node.status, node.updated]),
+        kicker: meta(["问题", node.status, recent]),
         body:
           paragraph(node.summary || "") +
-          paragraph(`主线共 ${node.stepCount} 步，沿箭头方向从起点走到当前理解。`, "popover-hint"),
+          paragraph(
+            `主线共 ${v.steps} 步，引用 ${v.sources} 条来源${v.conclusion ? "，已有阶段理解" : ""}，沿箭头方向从起点走到当前理解。`,
+            "popover-hint"
+          ),
         actions: "",
       };
     }

@@ -95,7 +95,7 @@ node scripts/check-lessons.mjs
 ```
 
 - `check.mjs`：默认只使用示例数据，检查路由、图谱连接、来源引用和布局；允许访问真实笔记时可显式传入 `--private-data`。
-- `check-replay.mjs`：仅使用合成数据，检查日期排序、播放节奏、拖动、暂停和减少动态效果。
+- `check-replay.mjs`：仅使用合成数据，检查日期排序、播放节奏、拖动、暂停和减少动态效果；第六期起同时断言主线时间轴与回放共用同一套日期序、间隔标注和选中同步。
 - `check-lessons.mjs`：检查经验与问题、步骤、模式之间的引用一致性，依赖本地私有数据。
 
 **只有 `check.mjs --private-data` 和 `check-lessons.mjs` 会尝试读取 `private-data/`，仅在允许访问本地真实笔记时运行。**
@@ -152,6 +152,8 @@ node scripts/test-effects-perf.mjs
 ```
 
 第五期的离线检查复用 `test-layout.mjs`（外围椭圆、focus 适配及桌面主题脑入屏）和 `test-effects-perf.mjs`（光环跟随与纹理复用、深度亮度、10 秒流星上限、方向渐变及零重复布局写入）。动效关闭时深度亮度直接到位；三种视口的标签碰撞、光环与步骤包围盒、4 倍 CPU 节流响应仍需浏览器验收。
+
+第六期的离线检查落在 `test-glyphs.mjs`（问题指纹分段环、暖金/待确认末段、来源刺数上限、空数据与 NaN 安全、主题活跃弧比例）、`test-layout.mjs`（`nodeVisual` 派生统计不改数据、横屏主线按日期间隔上行、结论跟随末步、起点/当前理解/最新一步标记）与 `check-replay.mjs`（时间轴与回放同序）。三视口的指纹可读性与时间轴观感仍需浏览器验收。
 
 </details>
 

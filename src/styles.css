@@ -339,6 +339,25 @@ button {
   background: rgba(232, 195, 122, 0.8);
 }
 
+/* 第六期图例：问题刻度环 —— 分段 = 步骤数，金色末段 = 已有阶段理解。 */
+.legend-ring {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--green-soft) 0 78deg,
+    transparent 78deg 90deg,
+    var(--green-soft) 90deg 168deg,
+    transparent 168deg 180deg,
+    var(--green-soft) 180deg 258deg,
+    transparent 258deg 270deg,
+    rgba(232, 195, 122, 0.85) 270deg 330deg,
+    transparent 330deg 360deg
+  );
+  mask: radial-gradient(circle, transparent 58%, #000 60%);
+  -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%);
+}
+
 .view-controls {
   display: flex;
   gap: var(--space-1);
@@ -1000,6 +1019,74 @@ button {
   stroke-width: 1.1px;
 }
 
+/* 第六期：末段暖金 = 已有阶段理解；待确认用同色虚线，不只靠颜色区分。 */
+.glyph-ring--warm,
+.glyph-ring--pending {
+  stroke: rgba(236, 203, 140, 0.8);
+}
+
+.glyph-ring--pending {
+  stroke-dasharray: 5 7;
+}
+
+/* 7 天内有更新：圆心呼吸亮点，亮度复用 coreBrightness 的 --fresh-level。 */
+.glyph-fresh {
+  fill: var(--green);
+  animation: glyph-breathe 6s ease-in-out infinite;
+}
+
+@keyframes glyph-breathe {
+  0%,
+  100% {
+    opacity: calc(var(--fresh-level, 0.9) * 0.45);
+  }
+  50% {
+    opacity: calc(var(--fresh-level, 0.9) * 0.9);
+  }
+}
+
+/* 超过 30 天未更新：问题整体降到 0.75，不改选中态的描边亮度。 */
+.node[data-faded="true"] .node-art {
+  opacity: 0.75;
+}
+
+/* 最新一步：细亮外环，与“当前选中”（填充变亮）区分。 */
+.glyph-newest {
+  fill: none;
+  stroke: rgba(198, 253, 221, 0.8);
+  stroke-width: 1px;
+  stroke-dasharray: 3 5;
+}
+
+/* 主题活跃弧：弧长 = 问题占比，亮度 = 最近记录新旧（--arc-bright）。 */
+.glyph-arc {
+  fill: none;
+  stroke: rgba(126, 242, 176, 0.5);
+  stroke-width: 1px;
+  opacity: calc(var(--arc-bright, 0.55) * 0.85);
+}
+
+/* 主线时间轴：极淡的日期轴与间隔标注，点与回放时间条同序。 */
+.timeline-line {
+  stroke: rgba(126, 242, 176, 0.18);
+  stroke-width: 1px;
+}
+
+.timeline-dot {
+  fill: rgba(126, 242, 176, 0.35);
+}
+
+.timeline-dot.is-selected {
+  fill: var(--green);
+}
+
+.timeline-gap {
+  fill: rgba(205, 226, 232, 0.55);
+  font-size: 10px;
+  text-anchor: middle;
+}
+
+
 .glyph-spike {
   fill: none;
   stroke: var(--green-mid);
@@ -1545,6 +1632,11 @@ button {
   animation: none !important;
   opacity: 0.72;
   transform: scale(1);
+}
+
+.app[data-motion="off"] .glyph-fresh {
+  animation: none !important;
+  opacity: calc(var(--fresh-level, 0.9) * 0.7);
 }
 
 .app[data-motion="off"] .node,
