@@ -1,0 +1,88 @@
+:root,
+[data-theme="dark"] {
+  --bg: #0d0f0e;
+  --surface: #151817;
+  --surface-2: #1b1f1d;
+  --line: #242927;
+  --line-strong: #353c39;
+  --text: #e7e9e6;
+  --text-2: #a3a9a5;
+  --text-3: #7d847f;
+  --accent: #4cc38a;
+  --accent-ink: #0d0f0e;
+  --accent-soft: rgba(76, 195, 138, 0.14);
+  --gold: #e0b45c;
+  --gold-soft: rgba(224, 180, 92, 0.14);
+  --doubt: #8ea2c6;
+  --doubt-soft: rgba(142, 162, 198, 0.14);
+  --seal: #e0694f;
+  --phase-see: #79a6dc;
+  --phase-think: #b09cd8;
+  --phase-do: #4cc38a;
+  --phase-learn: #e0b45c;
+  --focus: #9fe3c0;
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: #f7f4ee;
+  --surface: #fffdf9;
+  --surface-2: #f0ece4;
+  --line: #e4ded3;
+  --line-strong: #cfc7b9;
+  --text: #1f1d1a;
+  --text-2: #5f5a52;
+  --text-3: #6f685d;
+  --accent: #1b7a51;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(27, 122, 81, 0.1);
+  --gold: #8a610b;
+  --gold-soft: rgba(138, 97, 11, 0.1);
+  --doubt: #4a6290;
+  --doubt-soft: rgba(74, 98, 144, 0.1);
+  --seal: #b23f2a;
+  --phase-see: #33669f;
+  --phase-think: #6e53a8;
+  --phase-do: #1b7a51;
+  --phase-learn: #8a610b;
+  --focus: #1b7a51;
+  --shadow-pop: 0 12px 32px rgba(60, 45, 20, 0.14);
+  color-scheme: light;
+}
+
+/* 回望页固定配色，不随主题变化 */
+.atlas {
+  --sky: #06080f;
+  --star-new: #cfe3ff;
+  --star-mid: #f4ecd8;
+  --star-old: #f0b46a;
+  --sky-text: rgba(231, 233, 230, 0.7);
+}
+
+:root {
+  --font-ui: "Geist", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-read: "Newsreader", "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --fs-11: 11px; --fs-12: 12px; --fs-13: 13px; --fs-14: 14px; --fs-15: 15px;
+  --fs-16: 16px; --fs-17: 17px; --fs-19: 19px; --fs-22: 22px; --fs-24: 24px;
+  --fs-30: 30px; --fs-34: 34px; --fs-40: 40px;
+
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px;
+  --sp-6: 32px; --sp-7: 48px; --sp-8: 64px;
+
+  --radius: 6px;
+  --radius-lg: 10px;
+
+  --dur-1: 120ms; --dur-2: 180ms; --dur-3: 260ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  --sidebar-w: 248px;
+  --evidence-w: 320px;
+  --topbar-h: 52px;
+  --tabbar-h: 56px;
+  --read-measure: 34em;
+}
+
+[data-motion="off"] { --dur-1: 0ms; --dur-2: 0ms; --dur-3: 0ms; }

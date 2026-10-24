@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark" data-motion="on">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>赛博第二大脑</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;6..72,600&family=Noto+Serif+SC:wght@400;600&display=swap" />
+  <link rel="stylesheet" href="./src/styles/tokens.css" />
+  <link rel="stylesheet" href="./src/styles/base.css" />
+  <link rel="stylesheet" href="./src/styles/shell.css" />
+  <link rel="stylesheet" href="./src/styles/components.css" />
+  <link rel="stylesheet" href="./src/styles/pages.css" />
+  <link rel="stylesheet" href="./src/styles/atlas.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到正文</a>
+  <div class="app" id="app">
+    <nav class="sidebar" id="sidebar" aria-label="主导航"></nav>
+    <div class="workspace">
+      <header class="topbar" id="topbar" aria-label="顶栏"></header>
+      <main class="main" id="main" tabindex="-1"></main>
+    </div>
+    <aside class="evidence" id="evidence" aria-label="证据"></aside>
+    <nav class="tabbar" id="tabbar" aria-label="底部导航"></nav>
+  </div>
+  <div id="overlay-root"></div>
+  <div class="toast-region" id="toasts" role="status" aria-live="polite"></div>
+
+  <script src="./private-data/flomo.js"></script>
+  <script src="./private-data/thoughts.js"></script>
+  <script src="./private-data/lessons.js"></script>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
