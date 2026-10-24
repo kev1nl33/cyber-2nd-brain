@@ -81,7 +81,7 @@ let gAt=0;
 window.addEventListener('keydown',e=>{
   const editable=e.target instanceof Element && e.target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])');
   if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();ctx.openPalette();return;}
-  if(editable||document.querySelector('.modal-backdrop')||e.metaKey||e.ctrlKey||e.altKey)return;
+  if(editable||document.querySelector('[aria-modal="true"]')||e.metaKey||e.ctrlKey||e.altKey)return;
   if(e.key==='/'){e.preventDefault();ctx.openPalette();return;}
   if(e.key==='?'){e.preventDefault();openDialog('快捷键',h('dl',{class:'shortcut-list'},[['⌘K / Ctrl K / /','搜索'],['G T','今天'],['G R','待核对'],['G L','太史公曰'],['G S','来源'],['G Y','年表'],['G A','回望'],['J / K','下一步 / 上一步'],['O','查看原文'],['Y / E / N / S','确认 / 修改 / 不成立 / 稍后'],['Esc','关闭']].map(([key,label])=>h('div',{},h('dt',{},h('kbd',{},key)),h('dd',{},label)))));return;}
   const key=e.key.length===1?e.key.toLowerCase():'';if(key==='g'){gAt=Date.now();return;}if(gAt&&Date.now()-gAt<1000){gAt=0;const hash={t:'#/',r:'#/review',l:'#/lessons',s:'#/sources',y:'#/timeline',a:'#/atlas'}[key];if(hash){e.preventDefault();ctx.navigate(hash);}}
@@ -97,7 +97,7 @@ function render(force=false) {
   const same=samePage(previous,route);
   if(valid && !page?.invalidRoute && same && page?.update && (!force || route.page==='review')) {page.update(route,{refresh:force});shell?.update();return;}
   const active=document.activeElement;
-  page?.destroy?.(); evidence.replaceChildren(); evidence.classList.remove('is-open');
+  ctx.closeDrawer?.();page?.destroy?.(); evidence.replaceChildren(); evidence.classList.remove('is-open');
   const renderers={question:renderQuestion,today:renderToday,review:renderReview,theme:renderTheme,lessons:renderLessons,sources:renderSources,timeline:renderTimeline,atlas:renderAtlas};
   page=valid ? renderers[route.page]?.(ctx,route) ?? {element:h('article',{},h('h1',{tabindex:'-1'},'资料'))} : renderMissingRoute();
   page.element.classList.add('page');

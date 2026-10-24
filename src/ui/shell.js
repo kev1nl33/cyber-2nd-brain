@@ -15,6 +15,7 @@ export function mountShell(ctx) {
   let releaseDrawer;
   function closeDrawer(){const el=document.querySelector('#evidence');el.classList.remove('is-open');el.removeAttribute('aria-modal');el.removeAttribute('role');el.querySelector('.evidence-close')?.remove();document.querySelector('.evidence-toggle')?.setAttribute('aria-expanded','false');const release=releaseDrawer;releaseDrawer=null;release?.();}
   function toggleDrawer(event){const el=document.querySelector('#evidence');if(el.classList.contains('is-open')){closeDrawer();return;}el.classList.add('is-open');el.setAttribute('role','dialog');el.setAttribute('aria-modal','true');const button=event.currentTarget;button.setAttribute('aria-expanded','true');el.prepend(h('button',{class:'evidence-close','aria-label':'关闭',onclick:closeDrawer},'关闭'));releaseDrawer=trapFocus(el,closeDrawer,button);}
+  ctx.closeDrawer=()=>{if(releaseDrawer)closeDrawer();};
   ctx.escape=closeDrawer;
   function update() {
     const route = ctx.route, count = reviewQueue(ctx.model,ctx.overlay).length;
