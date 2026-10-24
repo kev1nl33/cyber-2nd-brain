@@ -1,7 +1,5 @@
 import { h } from '../ui/dom.js';
-import { fnv1a } from '../data/derive.js';
-import { PHASES, PHASE_LABEL } from '../data/taxonomy.js';
-import { sharedSourceIdeas } from '../data/derive.js';
+import { fnv1a, sharedSourceIdeas } from '../data/derive.js';
 
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 const lerp=(a,b,t)=>a+(b-a)*t;
@@ -13,17 +11,17 @@ export function renderAtlas(ctx, route) {
   const start=steps[0]?.date, end=steps.at(-1)?.date;
   const totalDays=Math.max(0,Math.round((Date.parse(end)-Date.parse(start))/86400000));
   const element=h('section',{class:'atlas'},h('canvas',{class:'atlas-canvas','aria-hidden':'true'}),h('ol',{class:'visually-hidden'},steps.map(s=>h('li',{},h('a',{href:`#/q/${encodeURIComponent(s.ideaId)}/${encodeURIComponent(s.id)}`},`${s.date} ${model.byId.idea.get(s.ideaId)?.title}：${s.title}`)))));
-  let speed=1, playing=false, stars=false, bridges=true, day=totalDays, labels=[], flashes=[], raf=null, lastT=0, hovered=null, returnHref=document.referrer&&!document.referrer.endsWith('/atlas')?'#/':'#/';
+  let speed=1, playing=false, stars=false, bridges=true, day=totalDays, labels=[], flashes=[], raf=null, lastT=0, hovered=null;
   const DAILY=24*1000*3600;
   const fullDuration=()=>24000/speed;
   const control=h('div',{class:'atlas-control'});
-  const playBtn=h('button',{class:'atlas-button',onclick:toggle},ctx.autoplayAtAtlas?'播放':'播放');
+  const playBtn=h('button',{class:'atlas-button',onclick:toggle},'播放');
   const bar=h('input',{class:'atlas-progress',type:'range',min:0,max:totalDays,step:1,value:totalDays,'aria-label':'时间进度'});
   const dateLabel=h('time',{class:'atlas-date'},'');
   const speedBtn=h('button',{class:'atlas-button',onclick:()=>{speed=speed===1?2:1;speedBtn.textContent=`${speed}×`;if(playing)stop();}},'1×');
   const starBtn=h('button',{class:'atlas-button','aria-pressed':'false',onclick:()=>{stars=!stars;starBtn.setAttribute('aria-pressed',String(stars));draw();}},'星座');
   const bridgeBtn=h('button',{class:'atlas-button','aria-pressed':'true',onclick:()=>{bridges=!bridges;bridgeBtn.setAttribute('aria-pressed',String(bridges));draw();}},'光桥');
-  const back=h('a',{class:'atlas-back',href:returnHref},'← 返回');
+  const back=h('a',{class:'atlas-back',href:'#/'},'← 返回');
   const firstMonthLabel=start?start.slice(0,7):'', lastMonthLabel=end?end.slice(0,7):'';
   control.append(playBtn,h('span',{class:'atlas-bound'},firstMonthLabel),bar,h('span',{class:'atlas-bound'},lastMonthLabel),dateLabel,speedBtn,starBtn,bridgeBtn);
   bar.addEventListener('input',()=>{day=Number(bar.value);labels=[];flashes=[];draw();});
@@ -71,12 +69,10 @@ export function renderAtlas(ctx, route) {
   const colOf=f=>f.color;
   function dayToDate(d){return new Date(Date.parse(start)+d*DAILY);}
   const fmt=d=>`${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
-  function lightUpTo(targetDay){const currentDate=dayToDate(targetDay);for(const step of steps){const d=Date.parse(step.date);const star=starOf.get(step.ideaId);if(!star||d>currentDate)continue;const isNew=star.lit===0;star.lit+= (star.litSteps?.has?.(step.key)?0:1);star.lastLit=step.date;}
-    }
   function play(){if(!steps.length)return;playing=true;wasPlayed=true;lastT=performance.now();day=day>=totalDays?0:day;litKeys=new Set();for(const s of starOf.values()){s.lit=0;s.lastLit=null;}loop();}
   let litKeys=new Set();
   function loop(){if(!playing)return;const now=performance.now();const dt=(now-lastT)*(totalDays/fullDuration());lastT=now;const before=day;day=Math.min(totalDays,day+dt);
-    for(const step of steps){const sd=Math.round((Date.parse(step.date)-Date.parse(start))/DAILY);if(sd>before&&sd<=day&&!litKeys.has(step.key)){litKeys.add(step.key);const star=starOf.get(step.ideaId);if(star){if(star.lit===0){star.flashDone=true;flashes.push({x:star.x,y:star.y,r:star.radius,color:starColor(0),at:now});if(ctx.prefs.motion!=='off')labels.push({x:star.x,y:star.y,text:star.idea.title,at:now});if(labels.length>3)labels.shift();}star.lit+=1;star.lastLit=step.date;}}}
+    for(const step of steps){const sd=Math.round((Date.parse(step.date)-Date.parse(start))/DAILY);if(sd>before&&sd<=day&&!litKeys.has(step.key)){litKeys.add(step.key);const star=starOf.get(step.ideaId);if(star){if(star.lit===0){flashes.push({x:star.x,y:star.y,r:star.radius,color:starColor(0),at:now});if(ctx.prefs.motion!=='off')labels.push({x:star.x,y:star.y,text:star.idea.title,at:now});if(labels.length>3)labels.shift();}star.lit+=1;star.lastLit=step.date;}}}
     draw();if(day>=totalDays){playing=false;draw();return;}raf=requestAnimationFrame(loop);}
   function toggle(){playing?stop():play();}
   function stop(){playing=false;cancelAnimationFrame(raf);draw();}
