@@ -37,6 +37,7 @@ ctx.exportReview = ()=>{
 };
 ctx.importReview = async file=>{try{const next=importOverlay(ctx.overlay,await file.text());save(next);showToast(`已合并 ${Object.keys(next.decisions).length} 条核对记录`);}catch{showToast('文件无法识别');}};
 const main=document.querySelector('#main'), evidence=document.querySelector('#evidence');
+main.setAttribute('aria-label','正文');
 ctx.openCopy=()=>openDialog('复制链接',h('input',{value:location.href,readonly:true,'aria-label':'复制链接',onclick:e=>e.target.select()}));
 ctx.copyLink=async()=>{try{await navigator.clipboard.writeText(location.href);showToast('已复制');}catch{ctx.openCopy();}};
 const destinations=[['今天','#/'],['待核对','#/review'],['年表','#/timeline'],['回望','#/atlas'],['太史公曰','#/lessons'],['来源','#/sources']];

@@ -1,216 +1,71 @@
 <p align="center"><img src="assets/readme/cover.svg" width="100%" alt="赛博第二大脑 · Cyber 2nd Brain：让知识连成脉络，让经验照亮判断"></p>
 
 <p align="center">
-  <a href="#简介">简介</a> · <a href="#知识脉络">知识脉络</a> · <a href="#界面">界面</a> · <a href="#本地使用">本地使用</a> · <a href="#数据边界">数据边界</a>
+  <a href="#简介">简介</a> · <a href="#界面">界面</a> · <a href="#本地运行">本地运行</a> · <a href="#测试">测试</a> · <a href="#数据边界">数据边界</a>
 </p>
 
 ## 简介
 
-**赛博第二大脑（Cyber 2nd Brain）**是一个个人知识可视化原型。投资、创作、开发、阅读、个人成长，五个主题汇入一张可逐层展开的画布，从问题走进思考步骤，再沿来源回看依据。
+**赛博第二大脑（Cyber 2nd Brain）v3** 是一张每天打开 5 分钟的思考工作台。它帮你核对推断、回看依据、沉淀经验；读起来像一本排版考究的书，偶尔，它能把一年的思考在星空里重放一遍。
 
-画布中的另一条线索是经验星空：天秤座的主星对应行为模式，小星对应可复用经验。点击星点，打开“太史公曰”式的结论卡片，再循着出处回到具体的思考步骤。经验星空容器 `#stars` 带 `aria-label`，屏幕阅读器可读。
+产品结构对应三件事：
 
-让保存过的知识重新参与理解与判断，是这个项目的方向。当前页面用于浏览已整理的数据；产品目标与后续设想见 [PRD.md](PRD.md)，当前界面约定见 [current.md](current.md)。
-
-## 知识脉络
-
-**主题 → 问题 → 步骤链 → 来源**，在画布上就地展开；经验星空提供从经验回到思考过程的另一条入口。
-
-<table>
-  <thead>
-    <tr><th>入口 / 层级</th><th>可以看到什么</th><th>实现依据</th></tr>
-  </thead>
-  <tbody>
-    <tr><td>五个主题</td><td>投资、创作、开发、阅读、个人成长。点击主题，展开该主题下的问题。</td><td><a href="src/sample-data.js">sample-data.js</a> · <a href="src/app.js">app.js</a></td></tr>
-    <tr><td>问题</td><td>围绕具体问题组织思考。点击展开步骤主线，再次点击可查看摘要、状态与步骤数量。</td><td><a href="src/graph.js">graph.js</a> · <a href="src/app.js">app.js</a></td></tr>
-    <tr><td>步骤链</td><td>按数据中的顺序串联思考步骤。点击步骤，高亮到该步的路径，查看说明、日期与来源入口；有摘要时，链末呈现阶段理解。</td><td><a href="src/graph.js">graph.js</a> · <a href="src/layout.js">layout.js</a> · <a href="src/app.js">app.js</a></td></tr>
-    <tr><td>来源</td><td>在步骤旁展开来源节点，或从浮框进入原文，再返回步骤说明。缺失的来源会明确提示。</td><td><a href="src/graph.js">graph.js</a> · <a href="src/app.js">app.js</a> · <a href="src/popover.js">popover.js</a></td></tr>
-    <tr><td>经验星空</td><td>主星呈现行为模式，小星呈现经验卡片；有匹配出处时，可从经验进入关联步骤。需要经验数据，缺少时不显示星空。</td><td><a href="src/stars.js">stars.js</a> · <a href="src/app.js">app.js</a></td></tr>
-  </tbody>
-</table>
-
-画布支持缩放、平移与复位，缩放 chip 带 `aria-label`（缩小 / 复位视图 / 放大），主题、问题与步骤的浏览位置可通过地址栏链接定位；主画布 `main#stage` 带 `aria-label`（思考图谱画布），节点层 `#nodes` 带 `aria-label`（大脑、问题与思考步骤），顶栏与底栏带 `aria-label`（顶栏 / 底栏），屏幕阅读器可读；开场脑图与字幕带 `aria-hidden`，屏幕阅读器忽略；背景画布与装饰蒙层带 `aria-hidden`，屏幕阅读器忽略；连线、标签与星座线图层带 `aria-hidden`，屏幕阅读器忽略。
-
-- **浮框**：高度随内容自适应，可整体拖动。内容不多时一次显示完；超出画布可用高度时在框内滚动，头部与「在画布展开来源」等操作按钮钉在底部。容器 `#popover` 带 `role="dialog"`，标题经 `aria-labelledby` 关联，关闭按钮带 `aria-label`（关闭浮框），屏幕阅读器可读。
-- **悬停邻域高亮**：鼠标悬停约 120ms 后，节点与一跳邻居保持亮度，其余节点和连线淡至 0.25 透明度，200ms 过渡；点击选中优先，触屏不触发。
-- **聚焦模式**：有可聚焦路径时按 F，只保留当前路径，其余淡至约 0.1 透明度；Esc 退出，总览层无效，结论节点留在路径上。
-- **复制视角链接**：右上角「复制链接」复制当前 URL（含 hash），成功后按钮短暂显示「已复制」，按钮带 `aria-live`，成功反馈屏幕阅读器可读；剪贴板不可用时回退到只读输入框 `#copy-fallback`，带 `aria-label`，屏幕阅读器可读。链接不含笔记正文。
-- **面包屑导航**：顶栏面包屑逐层显示总览 → 主题 → 问题 → 步骤，点击跳回任意层级；`nav` 带 `aria-label`（层级），屏幕阅读器可读层级导航。
-- **弧线连线**：步骤与来源连线采用轻微二次贝塞尔弧，流光与生长描线沿同一 path；减少动效时与原直线版本行为一致，不增加额外动画。
-- **连线图例**：画布下方图例标注各线型与节点含义，容器带 `aria-label`（连线图例），屏幕阅读器可读；色线、圆点与星等装饰图标带 `aria-hidden`，屏幕阅读器忽略。
-- **两跳关联**：步骤浮框列出引用过同一条来源的其他问题，按共同来源条数排序，最多 5 条；当前问题不出现，点一条即可跳过去。
-- **叠读**：从步骤浮框点开来源时，原来的浮框收成窄卡压在下面，可逐张点回去或按 Esc 逐级回退，退完最后一张才关闭。
-- **每日一星**：经验星空里每天用固定种子挑出一颗经验星，缓慢发出绿色脉冲，点击照常打开经验卡片；同一天挑中的是同一颗，换一天可能不同。
-- **展开动画**：展开主题或问题时，新出现的连线与节点由小到大长出来，依次错开；关闭动效时直接到位。
-- **中心呼吸**：画布中心随最近一步思考的新旧缓慢明暗，3 天内最亮、30 天以上最暗，6 秒一个呼吸周期；关闭动效时亮度保持静止。
-- **毛玻璃浮框**：浮框、窄卡与卡片统一为磨砂玻璃底，模糊背后的画布；不支持模糊的浏览器退回不透明底色，保证文字可读。
-- **景深视差**：平移画布时星空、流星与节点按不同深度跟随（0.3 / 0.6 / 1），产生远近层次；关闭动效时背景两层固定不动。
-- **缩放分层**：缩得很远时只留主题名，拉近后依次出现问题文字和步骤文字，阈值附近有滞回避免来回闪烁；选中路径上、浮框打开处以及键盘或链接跳到的节点，文字始终保留。
-- **思考回放**：展开问题后，底部出现一条细时间条。播放时按日期每 0.8 秒点亮一步并闪亮到该步的连线，可拖动时间条跳步，Esc 或再次点击暂停；系统开启「减少动态效果」时不自动播放，仅支持拖动回看。
-- **动效开关**：顶栏「动效」chip 一键开/关动效，按钮带 `aria-pressed` 反映当前开/关状态，屏幕阅读器可读。
-- **返回博客**：顶栏「返回博客」chip 一键跳回个人博客 https://aikevin.dpdns.org/；窄屏下顶栏自动换行，chip 始终可达。
+- **今天**：每天一屏，今日经验、待核对、搁置最久、最近在想、一年回望。
+- **待核对**：把「推断」逐条确认、修改、否掉或稍后，核对结果只叠加，不改写原始记录。
+- **问题页**：宋体排印的思考轨迹，页边注式来源，「太史公曰」经验集与年表；「回望」以星空重放全部步骤。
 
 ## 界面
 
-> 截图均使用示例数据，不含真实笔记。
+> 以下截图全部使用虚构的示例数据，不含真实笔记。
 
-### 01 · 五个主题，一张画布
+### 今天与待核对
 
-从主题进入问题，沿节点逐层展开。
+<p align="center"><img src="docs/v3-screenshots/stage-3-today-dark-1440.png" width="100%" alt="今天页示例截图"></p>
+<p align="center"><img src="docs/v3-screenshots/stage-3-review-dark-1440.png" width="100%" alt="待核对页示例截图"></p>
 
-<p align="center"><img src="assets/readme/overview.png" width="100%" alt="总览截图：使用示例数据展示五主题知识画布"></p>
+### 问题页
 
-### 02 · 沿着思考，回看来源
+<p align="center"><img src="docs/v3-screenshots/stage-2-question-dark-1440.png" width="100%" alt="问题页示例截图"></p>
 
-步骤链保留思考脉络，来源入口让每一步都有据可查。
+### 回望
 
-<p align="center"><img src="assets/readme/chain.png" width="100%" alt="步骤链截图：使用示例数据展示问题、步骤与来源浮框"></p>
+<p align="center"><img src="docs/v3-screenshots/stage-5-atlas-dark-1440.png" width="100%" alt="回望星空示例截图"></p>
 
-## 本地使用
+## 本地运行
 
-<details>
-<summary><strong>本地运行</strong></summary>
-
-需要 Python 3。在项目根目录启动静态文件服务：
+需要 Python 3，无构建步骤、无依赖安装：
 
 ```bash
 python3 -m http.server 8765 --bind 127.0.0.1
 ```
 
-打开 [本地预览](http://127.0.0.1:8765/index.html)。
+打开 [http://127.0.0.1:8765/](http://127.0.0.1:8765/)。
 
-缺少本地知识数据时，知识链自动使用 `src/sample-data.js` 中的示例数据。示例包含五个主题，部分问题带有步骤；缺少经验数据时，经验星空不显示，其余页面仍可使用。
+有本地数据时从 `private-data/` 的三个脚本读取；没有时自动切换到 `src/data/sample-data.js` 的示例数据，侧栏底部显示「示例数据」，核对记录只保存在本次会话。
 
-</details>
-
-<details>
-<summary><strong>检查与测试</strong></summary>
-
-需要 Node.js。在项目根目录运行：
+## 测试
 
 ```bash
-node scripts/check.mjs
-node scripts/check-replay.mjs
-node scripts/check-lessons.mjs
+node --test scripts/
 ```
 
-- `check.mjs`：默认只使用示例数据，检查路由、图谱连接、来源引用和布局；允许访问真实笔记时可显式传入 `--private-data`。
-- `check-replay.mjs`：仅使用合成数据，检查日期排序、播放节奏、拖动、暂停和减少动态效果；第六期起同时断言主线时间轴与回放共用同一套日期序、间隔标注和选中同步。
-- `check-lessons.mjs`：检查经验与问题、步骤、模式之间的引用一致性，依赖本地私有数据。
-
-**只有 `check.mjs --private-data` 和 `check-lessons.mjs` 会尝试读取 `private-data/`，仅在允许访问本地真实笔记时运行。**
-
-一句话：日常发版只跑 `node scripts/check.mjs`；`check-lessons.mjs` 是可选检查，需要本地 `private-data/`，不在默认套件里。
-
-单元测试基于 Node 内置的 `node:test`，零依赖、不读 `private-data/`，可单独运行：
+全部用 Node 内置 `node:test`，零依赖，只使用示例或合成数据。另可选：
 
 ```bash
-node scripts/test-contrast.mjs
-node scripts/test-check-suite.mjs
-node scripts/test-html-chrome.mjs
-node scripts/test-chrome-landmarks.mjs
-node scripts/test-motion-toggle-aria.mjs
-node scripts/test-copy-link-live.mjs
-node scripts/test-copy-fallback-aria.mjs
-node scripts/test-zoom-aria.mjs
-node scripts/test-breadcrumb-aria.mjs
-node scripts/test-popover-close-aria.mjs
-node scripts/test-popover-dialog.mjs
-node scripts/test-stage-aria.mjs
-node scripts/test-stars-aria.mjs
-node scripts/test-legend-aria.mjs
-node scripts/test-legend-icons-aria.mjs
-node scripts/test-nodes-aria.mjs
-node scripts/test-decor-aria-hidden.mjs
-node scripts/test-graph-aria-hidden.mjs
-node scripts/test-intro-aria-hidden.mjs
-node scripts/test-styles-blog-chip.mjs
-node scripts/test-gitignore.mjs
-node scripts/test-no-private-data.mjs
-node scripts/test-check-lessons-optin.mjs
-node scripts/test-current-blog.mjs
-node scripts/test-readme-tests.mjs
-node scripts/test-graph.mjs
-node scripts/test-sample-data.mjs
-node scripts/test-layout.mjs
-node scripts/test-route.mjs
-node scripts/test-replay.mjs
-node scripts/test-random.mjs
-node scripts/test-sources-dedup.mjs
-node scripts/test-two-hop.mjs
-node scripts/test-daily-star.mjs
-node scripts/test-grow.mjs
-node scripts/test-curves.mjs
-node scripts/test-core-breathe.mjs
-node scripts/test-anatomy.mjs
-node scripts/test-camera.mjs
-node scripts/test-glyphs.mjs
-node scripts/test-parallax.mjs
-node scripts/test-lod.mjs
-node scripts/test-perf-budget.mjs
-node scripts/test-effects-perf.mjs
-node scripts/test-search.mjs
+node scripts/check-model.mjs            # 示例数据统计
+node scripts/check-model.mjs --private  # 显式读取本地数据，仅仓库所有者使用
 ```
-
-第五期的离线检查复用 `test-layout.mjs`（外围椭圆、focus 适配及桌面主题脑入屏）和 `test-effects-perf.mjs`（光环跟随与纹理复用、深度亮度、10 秒流星上限、方向渐变及零重复布局写入）。动效关闭时深度亮度直接到位；三种视口的标签碰撞、光环与步骤包围盒、4 倍 CPU 节流响应仍需浏览器验收。
-
-第六期的离线检查落在 `test-glyphs.mjs`（问题指纹分段环、暖金/待确认末段、来源刺数上限、空数据与 NaN 安全、主题活跃弧比例）、`test-layout.mjs`（`nodeVisual` 派生统计不改数据、横屏主线按日期间隔上行、结论跟随末步、起点/当前理解/最新一步标记）与 `check-replay.mjs`（时间轴与回放同序）。三视口的指纹可读性与时间轴观感仍需浏览器验收。
-
-第七期的离线检查在 `test-search.mjs`：纯索引与中文子串排序、来源只搜标题、摘要前后 12 字；搜索控制器真实触发 `/`、Ctrl/⌘ K、Esc 与回车，验证焦点归还、相机不变、跨层 `navigate` 入历史；方位指示按真实离屏排序并避开浮框；主线 `replaceState` 步进、End 结论只选中、有框才更新框。390×844 的触控尺寸与三视口观感仍需浏览器验收。
-
-## 快捷键
-
-- `/` 或 `Ctrl/⌘ K`：搜索主题名、问题标题与摘要、步骤标题与正文、来源标题。不联网，不展示来源原文。
-- 问题层 `←` `→`（竖屏 `↑` `↓`）：沿主线移动选中；浮框已打开时内容跟随。无浮框时只替换当前地址，不新增历史、不自动开框。
-- `Home` / `End`：跳到起点 / 当前理解。当前理解沿用最后一步的地址。
-- `?`：快捷键说明。`Esc` 先关搜索或说明，再关浮框、返回上一层。
-- 画面外的当前焦点或外围节点会在边缘显示短标题箭头，点击只平移相机，不改变层级。
-- 桌面悬停问题 400ms 显示完整标题、摘要首句、步数和最近日期；触屏不出现。
-
-</details>
-
-<details>
-<summary><strong>目录结构</strong></summary>
-
-`assets/readme/` 仅存放 README 引用的封面、落款与示例截图，文件使用小写英文命名；更换素材时同步更新引用，并移除不再使用的文件。
-
-```text
-.
-├── index.html               # 页面入口
-├── assets/readme/           # README 视觉素材
-│   ├── cover.svg            # 夜空与天秤座封面
-│   ├── footer.svg           # 同风格落款
-│   ├── overview.png         # 总览示例截图
-│   └── chain.png            # 步骤链示例截图
-├── src/                     # 页面逻辑与样式
-│   ├── main.js              # 启动入口
-│   ├── app.js               # 交互与状态管理
-│   ├── graph.js             # 知识图谱数据转换
-│   ├── layout.js            # 节点布局
-│   ├── scene.js             # 画布节点与连线
-│   ├── stars.js             # 天秤座经验星空
-│   ├── popover.js           # 浮框与卡片
-│   ├── glow.js              # 中心呼吸亮度
-│   ├── lod.js               # 缩放分层阈值
-│   ├── parallax.js          # 景深视差
-│   ├── replay.js            # 思考回放时间条
-│   ├── sample-data.js       # 示例数据
-│   └── styles.css           # 页面样式
-├── scripts/                 # 检查与测试脚本
-│   ├── check.mjs
-│   ├── check-lessons.mjs
-│   └── test-*.mjs           # 单元测试（graph / sample-data / layout / route / replay / random / sources-dedup / two-hop / daily-star / grow / curves / core-breathe / anatomy / camera / glyphs / parallax / lod / perf-budget / effects-perf / check-suite / html-chrome / chrome-landmarks / motion-toggle-aria / copy-link-live / copy-fallback-aria / zoom-aria / breadcrumb-aria / popover-close-aria / popover-dialog / stage-aria / stars-aria / legend-aria / legend-icons-aria / nodes-aria / decor-aria-hidden / graph-aria-hidden / intro-aria-hidden / styles-blog-chip / gitignore / no-private-data / check-lessons-optin / current-blog / readme-tests）
-├── PRD.md                   # 产品需求与方向
-├── current.md               # 当前界面与交互约定
-├── visual-polish.md         # 视觉调整文档
-└── .gitignore               # 本地数据等文件的忽略规则
-```
-
-</details>
 
 ## 数据边界
 
-**仓库只放示例数据。** 真实笔记保存在本地 `private-data/`，由 `.gitignore` 排除，不入库。README 与展示素材仅使用示例内容，不包含真实笔记、密码、密钥或存储配置。
+**仓库只放示例数据。** 真实笔记保存在本地 `private-data/`，由 `.gitignore` 排除，不入库、不部署。README 与展示素材仅使用虚构内容，不包含真实笔记、密码、密钥或存储配置。
+
+## 文档
+
+- [实现指导](docs/v3-build-guide.md)：v3 的数值、文案、结构以此为准。
+- [决策记录](docs/decisions-log.md)：文档未覆盖时的执行选择。
+- [产品方向](PRD.md)、[当前界面约定](current.md)。
+- `legacy/` 为旧版应用，只读参考，不再修改。
 
 ---
 

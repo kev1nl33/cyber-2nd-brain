@@ -1,5 +1,7 @@
 # Cyber 第二大脑：当前实现方向
 
+> v3 起以 [docs/v3-build-guide.md](docs/v3-build-guide.md) 为准；本文件以下内容描述旧版画布方向，仅作历史参考。
+
 更新：2026-10-23。写给接手开发的 Cursor。
 
 本文件记录用户确认的交互方向，是 [PRD.md](PRD.md) 的界面实现说明。当前已有一版操作逻辑正确的网页原型；下一轮视觉改版见 [visual-polish.md](visual-polish.md)。若 PRD 的早期界面设想与本文冲突，以本文为准。

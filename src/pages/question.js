@@ -226,6 +226,13 @@ export function renderQuestion(ctx, route) {
   }
   const breakpoint = () => { applyNotes(); schedule(); };
   window.addEventListener('resize', breakpoint);
+  // Late layout shifts (fonts, sticky topbar) change the step tops without a resize event.
+  const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => schedule()) : null;
+  if (resizeObserver) { resizeObserver.observe(element); resizeObserver.observe(evidence); }
+  const lateMeasure = setTimeout(schedule, 260);
+  // The page-in animation translates the article by 4px; measure again when it settles.
+  const onAnimationEnd = () => schedule();
+  element.addEventListener('animationend', onAnimationEnd);
   // Scroll can move the reading column independently of the evidence column.
   element.addEventListener('load', schedule, true);
   desktop.addEventListener('change', breakpoint); mobile.addEventListener('change', breakpoint);
@@ -236,6 +243,7 @@ export function renderQuestion(ctx, route) {
   return { element, evidence, update, onKey, destroy() {
     destroyed = true;
     if (frame !== null) cancelAnimationFrame(frame);
+    clearTimeout(lateMeasure); resizeObserver?.disconnect(); element.removeEventListener('animationend', onAnimationEnd);
     window.removeEventListener('resize', breakpoint);
     element.removeEventListener('load', schedule, true);
     desktop.removeEventListener('change', breakpoint); mobile.removeEventListener('change', breakpoint);
