@@ -1,1 +1,13 @@
-/* 后续阶段实现。 */
+.app:has(.atlas),.app:has(.atlas) .sidebar,.app:has(.atlas) .topbar,.app:has(.atlas) .evidence,.app:has(.atlas) .tabbar {display:none;}
+.atlas {position:fixed;inset:0;background:var(--sky);z-index:60;}
+.atlas-canvas {width:100%;height:100%;}
+.atlas-back {position:absolute;top:var(--sp-5);left:var(--sp-5);color:var(--sky-text);text-decoration:none;font-size:14px;z-index:2;}
+.atlas-back:hover {color:#fff;}
+.atlas-control {position:absolute;bottom:max(var(--sp-5),env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(720px,92vw);display:flex;align-items:center;gap:var(--sp-3);background:rgba(6,8,15,0.72);border:1px solid rgba(255,255,255,0.12);border-radius:var(--radius-lg);padding:var(--sp-3) var(--sp-4);z-index:2;}
+.atlas-button {background:transparent;border:1px solid rgba(255,255,255,0.2);color:var(--sky-text);border-radius:var(--radius);padding:var(--sp-2) var(--sp-3);font-size:12px;flex-shrink:0;}
+.atlas-button:hover {background:rgba(255,255,255,0.08);color:#fff;}
+.atlas-button[aria-pressed="true"] {background:rgba(224,180,92,0.18);border-color:rgba(224,180,92,0.5);color:#e0b45c;}
+.atlas-bound {font:11px var(--font-mono);color:rgba(231,233,230,0.5);flex-shrink:0;}
+.atlas-date {font:12px var(--font-mono);color:#e7e9e6;min-width:80px;text-align:center;flex-shrink:0;}
+.atlas-progress {flex:1;accent-color:#e0b45c;}
+@media (width < 640px) {.atlas-control {gap:var(--sp-2);padding:var(--sp-2) var(--sp-3);}.atlas-bound {display:none;}.atlas-date {min-width:auto;}}

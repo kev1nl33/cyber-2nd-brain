@@ -15,6 +15,7 @@ import { renderTheme } from './pages/theme.js';
 import { renderLessons } from './pages/lessons.js';
 import { renderSources } from './pages/sources.js';
 import { renderTimeline } from './pages/timeline.js';
+import { renderAtlas } from './pages/atlas.js';
 
 const model = buildModel(loadData(), { today: todayKey() });
 let page, shell;
@@ -59,16 +60,16 @@ function render(force=false) {
   const same=previous?.page===route.page && (route.page!=='question' || previous.params.ideaId===route.params.ideaId) && (route.page!=='theme' || previous.params.themeId===route.params.themeId);
   if(same && page?.update && !force) {page.update(route);shell?.update();return;}
   page?.destroy?.(); evidence.replaceChildren(); evidence.classList.remove('is-open');
-  const renderers={question:renderQuestion,today:renderToday,review:renderReview,theme:renderTheme,lessons:renderLessons,sources:renderSources,timeline:renderTimeline};
+  const renderers={question:renderQuestion,today:renderToday,review:renderReview,theme:renderTheme,lessons:renderLessons,sources:renderSources,timeline:renderTimeline,atlas:renderAtlas};
   page=renderers[route.page]?.(ctx,route) ?? {element:h('article',{},h('h1',{tabindex:'-1'},'资料'))};
   main.replaceChildren(page.element);
   if(page.evidence) evidence.append(page.evidence);
   shell?.update();
-  window.scrollTo(0,0);main.querySelector('h1')?.focus({preventScroll:true});
+  window.scrollTo(0,0);main.querySelector('h1:not(.visually-hidden)')?.focus({preventScroll:true});
   page.update?.(route);
 }
 shell=mountShell(ctx);
 window.addEventListener('hashchange',()=>render());
 window.addEventListener('keydown',e=>{if(!(e.target instanceof Element)||e.target.closest('input,textarea,[contenteditable="true"]') || e.metaKey || e.ctrlKey || e.altKey)return;page?.onKey?.(e);});
-window.addEventListener('keydown',e=>{if(e.key!=='Escape'||e.defaultPrevented||document.querySelector('.modal-backdrop'))return;ctx.escape?.(e);});
+window.addEventListener('keydown',e=>{if(e.key!=='Escape'||e.defaultPrevented||document.querySelector('.modal-backdrop'))return;if(ctx.route?.page==='atlas'){e.preventDefault();ctx.navigate('#/');return;}ctx.escape?.(e);});
 render();
