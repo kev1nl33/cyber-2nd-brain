@@ -167,6 +167,7 @@ class FakeElement {
   }
   focus() {
     this.doc.activeElement = this;
+    for (const { fn } of this.listeners.focus || []) fn({ target: this });
   }
   select() {}
   closest() {
@@ -339,6 +340,72 @@ test("输入后回车走 navigate，结果可点，关闭不恢复焦点以免�
   button.listeners.click[0].fn();
   assert.equal(routes[1].sourceId, "note-heavy");
   assert.equal(routes[1].level, "step");
+});
+
+test("搜索 controller：IME Enter 不导航，Tab 聚焦第二结果后 Enter 打开第二条", () => {
+  const doc = fakeDocument();
+  const win = new FakeElement("window", doc);
+  const routes = [];
+  const controller = createSearchController({
+    graph: graph(), document: doc, window: win,
+    onNavigate: (route) => routes.push(route),
+  });
+  controller.attach();
+  controller.open();
+  const input = controller.elements.input;
+  input.value = "重仓";
+  input.listeners.input[0].fn();
+  dispatch(win, key(input, { key: "Enter", isComposing: true }));
+  assert.equal(routes.length, 0, "中文输入确认不能跳转");
+  assert.equal(controller.isOpen(), true);
+  dispatch(win, key(input, { key: "Enter", keyCode: 229 }));
+  assert.equal(routes.length, 0, "兼容 IME keyCode 229");
+  const active = input.getAttribute("aria-activedescendant");
+  dispatch(win, key(input, { key: "ArrowDown", isComposing: true }));
+  dispatch(win, key(input, { key: "Escape", isComposing: true }));
+  assert.equal(controller.isOpen(), true);
+  assert.equal(input.getAttribute("aria-activedescendant"), active);
+  dispatch(win, key(input, { key: "Enter" }));
+  assert.equal(routes.length, 1, "组合结束后普通 Enter 正常导航");
+  assert.equal(routes[0].ideaId, "heavy");
+});
+
+test("搜索 controller：Tab 聚焦第二结果后 Enter 打开第二条", () => {
+  const doc = fakeDocument();
+  const win = new FakeElement("window", doc);
+  const routes = [];
+  const controller = createSearchController({
+    graph: graph(), document: doc, window: win,
+    onNavigate: (route) => routes.push(route),
+  });
+  controller.attach();
+  controller.open();
+  const input = controller.elements.input;
+  input.value = "重仓";
+  input.listeners.input[0].fn();
+  const second = controller.elements.results.children[1].children[0];
+  dispatch(win, key(input, { key: "Tab" }));
+  // Native Tab moves focus; dispatch its resulting focus event on result two.
+  second.focus();
+  assert.equal(input.getAttribute("aria-activedescendant"), "search-result-1");
+  dispatch(win, key(second, { key: "Enter" }));
+  assert.equal(routes.length, 1);
+  assert.equal(routes[0].stepId, "open");
+  assert.equal(routes[0].level, "step");
+});
+
+test("搜索 controller：结果滚轮不取消默认滚动，仅阻止传播到画布", () => {
+  const doc = fakeDocument();
+  const win = new FakeElement("window", doc);
+  const controller = createSearchController({ graph: graph(), document: doc, window: win });
+  controller.open();
+  const event = key(controller.elements.results, { deltaY: 80 });
+  for (const { fn } of controller.elements.layer.listeners.wheel) fn(event);
+  assert.equal(event.defaultPrevented, false, "保留结果区原生滚动");
+  assert.equal(event.stopped, true, "滚轮不得传播到画布");
+  const start = css.indexOf(".search-results {");
+  const rule = css.slice(start, css.indexOf("}", start));
+  assert.match(rule, /overscroll-behavior:\s*contain/);
 });
 
 test("方位指示只指向真实离屏节点，按距离取前 5，并避开浮框", () => {

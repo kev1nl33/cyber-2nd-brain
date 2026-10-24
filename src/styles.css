@@ -2358,6 +2358,7 @@ button {
   padding: 6px;
   list-style: none;
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .search-result {

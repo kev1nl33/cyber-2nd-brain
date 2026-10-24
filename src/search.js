@@ -306,6 +306,10 @@ export function createSearchController({
       button.className = "search-result";
       button.dataset.index = String(i);
       button.dataset.type = result.type;
+      button.addEventListener("focus", () => {
+        activeIndex = i;
+        updateActive();
+      });
       button.addEventListener("click", () => choose(result));
       li.appendChild(button);
 
@@ -385,6 +389,8 @@ export function createSearchController({
 
   function onKeydown(event) {
     if (openState) {
+      // IME confirmation belongs to the input, never to result navigation.
+      if (event.isComposing || event.keyCode === 229) return;
       if (event.key === "Escape") {
         event.preventDefault();
         // Search is a modal layer above the popover: one Esc closes only this.
@@ -428,9 +434,8 @@ export function createSearchController({
   input.addEventListener("input", render);
   layer.addEventListener("pointerdown", (event) => event.stopPropagation());
   layer.addEventListener("wheel", (event) => {
-    event.preventDefault?.();
     event.stopPropagation();
-  }, { passive: false });
+  }, { passive: true });
   layer.addEventListener("click", (event) => {
     if (event.target === layer) close();
   });
