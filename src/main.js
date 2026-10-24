@@ -16,6 +16,32 @@ import { renderLessons } from './pages/lessons.js';
 import { renderSources } from './pages/sources.js';
 import { renderTimeline } from './pages/timeline.js';
 import { renderAtlas } from './pages/atlas.js';
+import { reviewQueue } from './data/derive.js';
+import { renderEmpty } from './ui/components/empty.js';
+
+function validRoute(route) {
+  const { page, params } = route;
+  if (page === 'question') {
+    const idea = model.byId.idea.get(params.ideaId);
+    if (!idea) return false;
+    if (!params.stepId) return true;
+    const step = model.byId.step.get(`${idea.id}/${params.stepId}`);
+    if (!step || step.ideaId !== idea.id || !idea.stepKeys.includes(step.key)) return false;
+    // A real reference can lack its source document and must retain its missing-source card.
+    return !params.sourceId || model.refs.some(ref => ref.stepKey === step.key && ref.sourceId === params.sourceId);
+  }
+  if (page === 'theme') return model.byId.theme.has(params.themeId);
+  if (page === 'lessons') return !params.patternId || params.patternId === 'unsorted' || model.byId.pattern.has(params.patternId);
+  if (page === 'sources') return !params.sourceId || model.byId.source.has(params.sourceId);
+  if (page === 'review' && params.key) return reviewQueue(model, ctx.overlay, model.today).some(item => item.key === params.key);
+  return true;
+}
+
+function renderMissingRoute() {
+  const element = h('section', {}, h('h1', { tabindex: '-1', class: 'visually-hidden' }, '找不到这个内容。'),
+    renderEmpty('找不到这个内容。', { href: '#/', label: '回到今天' }));
+  return { element, invalidRoute: true };
+}
 
 const model = buildModel(loadData(), { today: todayKey() });
 let page, shell;
@@ -67,12 +93,13 @@ function render(force=false) {
   const route=parse(location.hash), previous=ctx.route;
   if(route.page==='atlas' && previous && previous.page!=='atlas') ctx.atlasOrigin=build(previous);
   ctx.route=route;
+  const valid=validRoute(route);
   const same=samePage(previous,route);
-  if(same && page?.update && (!force || route.page==='review')) {page.update(route,{refresh:force});shell?.update();return;}
+  if(valid && !page?.invalidRoute && same && page?.update && (!force || route.page==='review')) {page.update(route,{refresh:force});shell?.update();return;}
   const active=document.activeElement;
   page?.destroy?.(); evidence.replaceChildren(); evidence.classList.remove('is-open');
   const renderers={question:renderQuestion,today:renderToday,review:renderReview,theme:renderTheme,lessons:renderLessons,sources:renderSources,timeline:renderTimeline,atlas:renderAtlas};
-  page=renderers[route.page]?.(ctx,route) ?? {element:h('article',{},h('h1',{tabindex:'-1'},'资料'))};
+  page=valid ? renderers[route.page]?.(ctx,route) ?? {element:h('article',{},h('h1',{tabindex:'-1'},'资料'))} : renderMissingRoute();
   main.replaceChildren(page.element);
   if(page.evidence) evidence.append(page.evidence);
   shell?.update();

@@ -28,7 +28,7 @@ export function renderAtlas(ctx, route) {
   element.append(back,control,h('h1',{class:'visually-hidden',tabindex:'-1'},'回望'));
   const canvas=element.querySelector('canvas'), dpr=Math.min(2,devicePixelRatio||1);
   let W=0,H=0,S=0;
-  function resize(){W=innerWidth;H=innerHeight;canvas.width=W*dpr;canvas.height=H*dpr;canvas.style.width=W+'px';canvas.style.height=H+'px';layout();applyDay();draw();}
+  function resize(){W=innerWidth;H=innerHeight;canvas.width=W*dpr;canvas.height=H*dpr;canvas.style.width=W+'px';canvas.style.height=H+'px';layout();if(playing){for(const step of steps){if(!litKeys.has(step.key))continue;const star=starOf.get(step.ideaId);if(star){star.lit++;star.lastLit=step.date;}}}else applyDay();draw();}
   const themes=model.themes.slice(0,5);
   const zones=themes.map((t,i)=>{const angle=(-90+i*72)*Math.PI/180;return {theme:t,cx:Math.cos(angle),cy:Math.sin(angle)};});
   const ideas=model.ideas.filter(i=>i.stepKeys.length);
@@ -72,16 +72,20 @@ export function renderAtlas(ctx, route) {
   const colOf=f=>f.color;
   function dayToDate(d){return new Date(Date.parse(start)+d*DAILY);}
   const fmt=d=>`${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
-  function play(){if(!steps.length)return;if(day>=totalDays)seek(0);else applyDay();playing=true;wasPlayed=true;lastT=performance.now();loop();}
+  let pendingEvents=[];
+  function light(step,now){const star=starOf.get(step.ideaId);if(!star||litKeys.has(step.key))return;litKeys.add(step.key);star.lit+=1;star.lastLit=step.date;if(!ctx.prefs.reducedMotion){flashes.push({x:star.x,y:star.y,r:star.radius,color:starColor(0),at:now});labels.push({x:star.x,y:star.y,text:star.idea.title,at:now});if(labels.length>3)labels.shift();}}
+  function enqueue(events,now){let previousDate=null,index=0;for(const step of events){index=step.date===previousDate?index+1:0;previousDate=step.date;pendingEvents.push({step,at:now+index*120});}}
+  function play(){if(!steps.length)return;const replay=day>=totalDays;if(replay){seek(0);litKeys=new Set();for(const star of starOf.values()){star.lit=0;star.lastLit=null;}}else applyDay();playing=true;wasPlayed=true;lastT=performance.now();if(replay)enqueue(steps.filter(step=>step.date===start),lastT);loop();}
   let litKeys=new Set();
-  function loop(){if(!playing)return;const now=performance.now();const dt=(now-lastT)*(totalDays/fullDuration());lastT=now;const before=day;day=Math.min(totalDays,day+dt);
-    for(const step of steps){const sd=Math.round((Date.parse(step.date)-Date.parse(start))/DAILY);if(sd>before&&sd<=day&&!litKeys.has(step.key)){litKeys.add(step.key);const star=starOf.get(step.ideaId);if(star){if(star.lit===0&&!ctx.prefs.reducedMotion){flashes.push({x:star.x,y:star.y,r:star.radius,color:starColor(0),at:now});if(ctx.prefs.motion!=='off')labels.push({x:star.x,y:star.y,text:star.idea.title,at:now});if(labels.length>3)labels.shift();}star.lit+=1;star.lastLit=step.date;}}}
-    draw();if(day>=totalDays){playing=false;draw();return;}raf=requestAnimationFrame(loop);}
+  function loop(){const now=performance.now();if(playing){const dt=(now-lastT)*(totalDays/fullDuration());lastT=now;const before=day;day=Math.min(totalDays,day+dt);
+    enqueue(steps.filter(step=>{const sd=Math.round((Date.parse(step.date)-Date.parse(start))/DAILY);return sd>before&&sd<=day&&!litKeys.has(step.key);}),now);}
+    const due=pendingEvents.filter(event=>event.at<=now);pendingEvents=pendingEvents.filter(event=>event.at>now);for(const event of due)light(event.step,now);
+    if(day>=totalDays&&!pendingEvents.length)playing=false;draw();if(playing||pendingEvents.length||labels.length||flashes.length)raf=requestAnimationFrame(loop);}
   function toggle(){playing?stop():play();}
-  function stop(){playing=false;cancelAnimationFrame(raf);draw();}
+  function stop(){playing=false;cancelAnimationFrame(raf);pendingEvents=[];labels=[];flashes=[];applyDay();draw();}
   element.addEventListener('keydown',e=>{if(e.key===' '){e.preventDefault();toggle();}if(e.key==='ArrowRight'){day=Math.min(totalDays,Math.round(day)+7);sync();}if(e.key==='ArrowLeft'){day=Math.max(0,Math.round(day)-7);sync();}if(e.key==='Home'){day=0;sync();}if(e.key==='End'){day=totalDays;sync();}});
   function sync(){seek(day);}
-  function seek(target){playing=false;cancelAnimationFrame(raf);day=clamp(target,0,totalDays);labels=[];flashes=[];lastT=performance.now();applyDay();draw();}
+  function seek(target){playing=false;cancelAnimationFrame(raf);day=clamp(target,0,totalDays);pendingEvents=[];labels=[];flashes=[];lastT=performance.now();applyDay();draw();}
   function applyDay(){litKeys=new Set();for(const s of starOf.values()){s.lit=0;s.lastLit=null;}for(const step of steps){const sd=Math.round((Date.parse(step.date)-Date.parse(start))/DAILY);if(sd<=day){litKeys.add(step.key);const star=starOf.get(step.ideaId);if(star){star.lit+=1;star.lastLit=step.date;}}}}
   const tooltip=h('div',{class:'atlas-tooltip',role:'tooltip',hidden:true});element.append(tooltip);
   function hit(event){return [...starOf.values()].find(s=>s.lit&&Math.hypot(event.clientX-s.x,event.clientY-s.y)<=Math.max(8,s.radius+4))??null;}
@@ -90,9 +94,10 @@ export function renderAtlas(ctx, route) {
   canvas.addEventListener('click',event=>{const star=hit(event);if(star)ctx.navigate(`#/q/${encodeURIComponent(star.idea.id)}`);});
   const observer=new ResizeObserver(resize);observer.observe(element);
   resize();
-  if(route.params.month){const target=`${route.params.month}-28`;day=clamp(Math.round((Date.parse(target)-Date.parse(start))/DAILY),0,totalDays);applyDay();draw();}
+  function update(nextRoute){if(nextRoute.page!=='atlas')return false;if(nextRoute.params.month){const [year,month]=nextRoute.params.month.split('-').map(Number);const target=Date.UTC(year,month,0);seek(Math.round((target-Date.parse(start))/DAILY));}return true;}
+  if(route.params.month)update(route);
   else if(ctx.autoplayAtAtlas){ctx.autoplayAtAtlas=false;day=0;applyDay();draw();if(!ctx.prefs.reducedMotion)play();}
   else {applyDay();draw();}
-  return {element,destroy(){observer.disconnect();cancelAnimationFrame(raf);playing=false;labels=[];flashes=[];}};
+  return {element,update,destroy(){observer.disconnect();cancelAnimationFrame(raf);playing=false;pendingEvents=[];labels=[];flashes=[];}};
 }
 export default renderAtlas;

@@ -1,6 +1,11 @@
 import { h, icon } from '../dom.js';
 import { buildIndex, search } from '../../data/search.js';
 const names={idea:'问题',step:'步骤',lesson:'经验',theme:'主题',source:'来源',command:'命令'};
+export function trapFocus(dialog, close, previous=document.activeElement) {
+  function onKey(event){if(event.key==='Escape'){event.preventDefault();event.stopPropagation();close();return;}if(event.key!=='Tab')return;const items=[...dialog.querySelectorAll('button,a[href],input,textarea,summary,[tabindex="0"]')].filter(el=>!el.disabled&&el.getClientRects().length);const first=items[0],last=items.at(-1);if(!items.length){event.preventDefault();dialog.focus();}else if(event.shiftKey&&(document.activeElement===first||!dialog.contains(document.activeElement))){event.preventDefault();last.focus();}else if(!event.shiftKey&&(document.activeElement===last||!dialog.contains(document.activeElement))){event.preventDefault();first.focus();}}
+  document.addEventListener('keydown',onKey,true);dialog.querySelector('button,a[href],input')?.focus();
+  return ()=>{document.removeEventListener('keydown',onKey,true);(previous?.isConnected?previous:document.querySelector('#main h1[tabindex],#main'))?.focus?.();};
+}
 export function openDialog(title, content) {
   const previous=document.activeElement;
   const close=()=>{backdrop.remove();document.removeEventListener('keydown',onKey,true);const target=previous?.isConnected?previous:document.querySelector('#main h1[tabindex],#main');target?.focus?.();};
