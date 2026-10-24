@@ -5,7 +5,7 @@ import { renderKindTag } from './kind-tag.js';
 import { renderConnector } from './connector.js';
 
 export function renderStep(step, { selected = false, refNumbers = [], overlayState, onSelect, onDecide,
-  showYear = step.index === 1, latest = step.index === step.total, onRef, onLayout } = {}) {
+  showYear = step.index === 1, latest = step.index === step.total, outgoingConnection, outgoingGap = false, onRef, onLayout } = {}) {
   const connector = renderConnector(step, overlayState, { onDecide, onLayout });
   const connectionSlot = h('div', { class: 'step__connection' }, connector);
   const body = h('p', { class: 'step__body' }, step.body,
@@ -17,7 +17,8 @@ export function renderStep(step, { selected = false, refNumbers = [], overlaySta
   const content = h('div', { class: 'step__content' }, renderKindTag(step), h('h2', { class: 'step__title' }, step.title), body);
   const root = h('li', {
     class: `step${selected ? ' is-selected' : ''}${latest ? ' step--latest' : ''}`, tabindex: '0',
-    dataset: { stepKey: step.key, stepId: step.id, phase: step.phase, connection: step.connection },
+    dataset: { stepKey: step.key, stepId: step.id, phase: step.phase, connection: step.connection,
+      outgoingConnection: outgoingConnection ?? '', outgoingGap: String(outgoingGap) },
     'aria-label': `第 ${step.index} 步，共 ${step.total} 步，${PHASE_LABEL[step.phase]} · ${step.kind}，${step.date}`,
     onclick: event => { if (!event.target.closest('a,button,input,textarea,summary,details,form')) onSelect?.(step); },
     onkeydown: event => { if (event.target === root && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onSelect?.(step); } },

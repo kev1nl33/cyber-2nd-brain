@@ -125,6 +125,7 @@ export function renderQuestion(ctx, route) {
     const local = refs.map(ref => ({ ref, step, number: entries.length + 1 + refs.indexOf(ref) }));
     const li = renderStep(step, {
       refNumbers: local, overlayState: ctx.overlay,
+      outgoingConnection: steps[index + 1]?.connection, outgoingGap: steps[index + 1]?.gapDays >= 14,
       showYear: index === 0 || step.date.slice(0, 4) !== steps[index - 1].date.slice(0, 4),
       latest: step === steps.filter(item => item.date === idea.lastDate).at(-1),
       onSelect: () => { select(step.id); navigate(step.id); }, onDecide: decide, onLayout: schedule,

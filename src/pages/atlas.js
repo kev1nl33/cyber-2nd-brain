@@ -18,7 +18,7 @@ export function renderAtlas(ctx, route) {
   const playBtn=h('button',{class:'atlas-button',onclick:toggle},'播放');
   const bar=h('input',{class:'atlas-progress',type:'range',min:0,max:totalDays,step:1,value:totalDays,'aria-label':'时间进度'});
   const dateLabel=h('time',{class:'atlas-date'},'');
-  const speedBtn=h('button',{class:'atlas-button',onclick:()=>{speed=speed===1?2:1;speedBtn.textContent=`${speed}×`;if(playing)stop();}},'1×');
+  const speedBtn=h('button',{class:'atlas-button',onclick:()=>{speed=speed===1?2:1;speedBtn.textContent=`${speed}×`;lastT=performance.now();}},'1×');
   const starBtn=h('button',{class:'atlas-button','aria-pressed':'false',onclick:()=>{stars=!stars;starBtn.setAttribute('aria-pressed',String(stars));draw();}},'星座');
   const bridgeBtn=h('button',{class:'atlas-button','aria-pressed':'true',onclick:()=>{bridges=!bridges;bridgeBtn.setAttribute('aria-pressed',String(bridges));draw();}},'光桥');
   const back=h('a',{class:'atlas-back',href:'#/'},'← 返回');
@@ -76,7 +76,6 @@ export function renderAtlas(ctx, route) {
     draw();if(day>=totalDays){playing=false;draw();return;}raf=requestAnimationFrame(loop);}
   function toggle(){playing?stop():play();}
   function stop(){playing=false;cancelAnimationFrame(raf);draw();}
-  playBtn.addEventListener('click',toggle);
   element.addEventListener('keydown',e=>{if(e.key===' '){e.preventDefault();toggle();}if(e.key==='ArrowRight'){day=Math.min(totalDays,Math.round(day)+7);sync();}if(e.key==='ArrowLeft'){day=Math.max(0,Math.round(day)-7);sync();}if(e.key==='Home'){day=0;sync();}if(e.key==='End'){day=totalDays;sync();}});
   function sync(){stop();applyDay();draw();}
   function applyDay(){litKeys=new Set();for(const s of starOf.values()){s.lit=0;s.lastLit=null;}for(const step of steps){const sd=Math.round((Date.parse(step.date)-Date.parse(start))/DAILY);if(sd<=day){litKeys.add(step.key);const star=starOf.get(step.ideaId);if(star){star.lit+=1;star.lastLit=step.date;}}}}

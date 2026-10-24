@@ -7,6 +7,25 @@ test('title prefix then title substring then other fields',()=>{
  assert.equal(search(buildIndex(model),'secret_body_only').source.length,0);
  assert.deepEqual(Object.keys(r),['idea','step','lesson','theme','source','command']);
 });
+test('equal match ranks sort newest first within each dated group',()=>{
+ // Input order is deliberately neither ascending nor descending by date.
+ const dates=[['middle','2026-01-01'],['old','2025-12-31'],['new','2026-10-24']];
+ const dated={
+   ideas:dates.map(([id,updated])=>({id,title:'星砂问题',summary:'另含月亮',updated})),
+   steps:dates.map(([id,date])=>({key:`i/${id}`,title:'星砂步骤',body:'另含月亮',date})),
+   sources:dates.map(([id,date])=>({id,title:'星砂来源',tags:['另含月亮'],date})),
+   themes:dates.map(([id,latest])=>({id,label:'星砂主题',en:'另含月亮',latest})),
+   lessons:[],patterns:[]
+ };
+ const index=buildIndex(dated);
+ for(const query of ['星砂','砂','月亮']){
+   const result=search(index,query);
+   for(const group of ['idea','source','theme']){
+     assert.deepEqual(result[group].map(r=>r.id),['new','middle','old'],`${query}: ${group}`);
+   }
+   assert.deepEqual(result.step.map(r=>r.id),['i/new','i/middle','i/old'],`${query}: step`);
+ }
+});
 test('Chinese matching, pattern grouping, commands and group cap',()=>{
  const index=buildIndex(model,[{id:'go',name:'前往月亮'}]); const r=search(index,'月亮');
  assert.equal(r.step.length,1); assert.equal(r.lesson.length,2); assert.equal(r.lesson[0].type,'pattern'); assert.equal(r.source.length,1); assert.equal(r.command.length,1);

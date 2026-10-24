@@ -116,8 +116,8 @@ export function renderReview(ctx, initialRoute) {
         h('div', { class: 'review__connector', dataset: { connection: 'inferred' } }, `「${target.link}」 推断`), stepCard(target, '这一步'));
     } else if (type === 'lesson') {
       detail.append(h('p', { class: 'review__lesson' }, `「${target.text}」`),
-        target.patternIds.map(id => model.byId.pattern.get(id)).filter(Boolean).map(pattern => h('p', { class: 'review__pattern' }, `${pattern.name} · ${pattern.level}`)),
-        target.stepKeys.map(key => model.byId.step.get(key)).filter(Boolean).map(step => stepCard(step, `第 ${step.index} 步`)));
+        ...target.patternIds.map(id => model.byId.pattern.get(id)).filter(Boolean).map(pattern => h('p', { class: 'review__pattern' }, `${pattern.name} · ${pattern.level}`)),
+        ...target.stepKeys.map(key => model.byId.step.get(key)).filter(Boolean).map(step => stepCard(step, `第 ${step.index} 步`)));
     } else {
       detail.append(h('h3', { class: 'review__idea-title' }, target.title), h('p', { class: 'review__status' }, target.statusRaw), renderPhaseBar(target.phases),
         h('ol', { class: 'review__idea-steps' }, target.stepKeys.map(key => model.byId.step.get(key)).filter(Boolean).map(step => h('li', {},

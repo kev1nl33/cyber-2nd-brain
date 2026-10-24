@@ -50,7 +50,7 @@ export function renderTimeline(ctx) {
     const header = h('div', { class: 'timeline__header' }, h('div', { class: 'timeline__months-head', 'aria-hidden': 'true' }),
       columns.map(theme => h('div', { class: 'timeline__column-head' }, h('span', {}, `${theme.code} ${theme.label}`), h('span', { class: 'timeline__column-count' }, `${theme.stepCount} 步`))));
     const months = h('div', { class: 'timeline__months' });
-    const marks = h('div', { class: 'timeline__marks', style: { height: `${totalDays * dayPx}px` } });
+    const marks = h('div', { class: 'timeline__marks', 'aria-hidden': 'true' });
     let cursor = new Date(start);
     const firstMonth = start.toISOString().slice(0, 7);
     while (cursor <= endDate) {
@@ -58,6 +58,7 @@ export function renderTimeline(ctx) {
       const dayIndex = diffDays(start.toISOString().slice(0, 10), `${month}-01`);
       const year = cursor.getUTCFullYear();
       const label = month === firstMonth || cursor.getUTCMonth() === 0 ? `${year}.${String(cursor.getUTCMonth() + 1).padStart(2, '0')}` : `${String(cursor.getUTCMonth() + 1).padStart(2, '0')} 月`;
+      marks.append(h('div', { class: 'timeline__month-line', style: { top: `${dayIndex * dayPx}px` } }));
       months.append(h('div', { class: 'timeline__month', style: { top: `${dayIndex * dayPx}px` } }, label));
       cursor = new Date(Date.UTC(year, cursor.getUTCMonth() + 1, 1));
     }
@@ -84,7 +85,7 @@ export function renderTimeline(ctx) {
         }
       }
     }
-    desktop.replaceChildren(header, h('div', { class: 'timeline__grid' }, months, h('div', { class: 'timeline__lanes', style: { gridTemplateColumns: `repeat(${columns.length}, 1fr)` } }, lanes)));
+    desktop.replaceChildren(header, h('div', { class: 'timeline__grid', style: { height: `${totalDays * dayPx}px` } }, months, h('div', { class: 'timeline__lanes', style: { gridTemplateColumns: `repeat(${columns.length}, minmax(0,1fr))` } }, marks, lanes)));
     const monthKey = date => date.slice(0, 7);
     const byMonth = new Map();
     for (const step of [...steps].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.key.localeCompare(b.key)))) {
@@ -93,7 +94,7 @@ export function renderTimeline(ctx) {
     }
     for (const [month, list] of byMonth) {
       const section = h('section', { class: 'timeline-month' },
-        h('h2', { class: 'timeline-month__title' }, `${month} · ${list.length} 步`),
+        h('h2', { class: 'timeline-month__title' }, `${month.replace('-', '.')} · ${list.length} 步`),
         h('ul', {}, list.map(step => {
           const idea = model.byId.idea.get(step.ideaId);
           return h('li', { class: 'timeline-month__item' }, h('a', { href: `#/q/${encodeURIComponent(step.ideaId)}/${encodeURIComponent(step.id)}` },
