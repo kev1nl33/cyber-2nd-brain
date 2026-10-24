@@ -6,10 +6,34 @@
 
 const HALO = '<circle class="glyph-halo" cx="0" cy="0" r="86" />';
 
-export function ideaGlyph(seed = 0) {
+/** 段间缺口：问题少时按 6°，段太密时收缩到每段至少留 1.5°。 */
+function ringGap(segments) {
+  const span = 360 - 6 * segments;
+  return span >= 0 ? 6 : Math.min(6, 360 / segments - 1.5);
+}
+
+/**
+ * 问题指纹：外环按步骤数分段，末段暖金表示已有阶段理解（待确认为暖金虚线），
+ * 圆心亮点表示 7 天内有更新，刺数等于去重来源数（上限 9）。全部由参数决定，纯函数。
+ * @param {{ seed?: number, steps?: number, sources?: number, conclusion?: "confirmed"|"unconfirmed"|null, fresh?: boolean }} [fingerprint]
+ */
+export function ideaGlyph(fingerprint = 0) {
+  const legacy = typeof fingerprint === "number";
+  // 数字签名（旧测试/演示）保留 6 段 7 刺；对象缺字段时宁可少画，不伪造数据。
+  const { seed = legacy ? fingerprint : 0, steps = legacy ? 6 : 0, sources = legacy ? 7 : 0, conclusion = null, fresh = false } =
+    legacy ? {} : fingerprint;
+  const count = Number.isFinite(steps) && steps > 0 ? Math.min(60, Math.round(steps)) : 0;
+  const ringClass = conclusion === "confirmed" ? "glyph-ring--warm" : "glyph-ring--pending";
+  const gap = count ? ringGap(count) : 0;
+  const rings = [];
+  for (let i = 0; i < count; i++) {
+    const warm = conclusion && i === count - 1;
+    rings.push(arc(58, -90 + gap / 2 + i * (360 / count), -90 + (i + 1) * (360 / count) - gap / 2, `glyph-ring${warm ? ` ${ringClass}` : ""}`));
+  }
   const spikes = [];
-  for (let i = 0; i < 7; i++) {
-    const a = (i / 7) * Math.PI * 2 + (seed % 7) * 0.21;
+  const spikeCount = Number.isFinite(sources) && sources > 0 ? Math.min(9, Math.round(sources)) : 0;
+  for (let i = 0; i < spikeCount; i++) {
+    const a = (i / spikeCount) * Math.PI * 2 + (seed % 7) * 0.21;
     const r0 = 62;
     const r1 = 62 + 20 + ((i * 7 + seed) % 11);
     spikes.push(
@@ -18,10 +42,10 @@ export function ideaGlyph(seed = 0) {
   }
   return [
     HALO,
-    arc(58, -120, 110, "glyph-ring"),
-    arc(58, 130, 335, "glyph-ring"),
+    rings.join(""),
     `<circle class="glyph-core" cx="0" cy="0" r="34" />`,
     `<circle class="glyph-pupil" cx="0" cy="0" r="13" />`,
+    fresh ? `<circle class="glyph-fresh" cx="0" cy="0" r="22" />` : "",
     spikes.join(""),
   ].join("");
 }
@@ -57,6 +81,13 @@ export function sourceGlyph() {
     `<path class="glyph-rule" d="M-26,-6 L30,-6" />`,
     `<path class="glyph-rule" d="M-26,20 L16,20" />`,
   ].join("");
+}
+
+/** 主题活跃弧：比例占整圈的比例，0 或非法值不画。同一种绿色，不给主题上色。 */
+export function activityArc(ratio) {
+  if (typeof ratio !== "number" || !Number.isFinite(ratio) || ratio <= 0) return "";
+  const clamped = Math.min(1, ratio);
+  return arc(94, -90, -90 + 360 * clamped, "glyph-arc");
 }
 
 function polygon(sides, r, startDeg = 0) {

@@ -5,9 +5,60 @@
  */
 import { brainArt } from "./anatomy.js";
 import { coreBrightness, daysSince, latestStepDate, EASE_TAU } from "./glow.js";
-import { conclusionGlyph, ideaGlyph, sourceGlyph, stepGlyph } from "./glyphs.js";
+import { activityArc, conclusionGlyph, ideaGlyph, sourceGlyph, stepGlyph } from "./glyphs.js";
 import { nextLod } from "./lod.js";
 import { hashString } from "./random.js";
+
+/**
+ * 第六期派生统计：只读内存图谱，不改数据结构。缺字段时宁可少画，不伪造数据。
+ * @param {any} node
+ * @param {Map<string,any>|any[]} [nodes]
+ * @param {Date} [now]
+ */
+export function nodeVisual(node, nodes = new Map(), now = new Date()) {
+  if (!node) return {};
+  const list = nodes instanceof Map ? [...nodes.values()] : Array.isArray(nodes) ? nodes : [];
+  if (node.type === "idea") {
+    const steps = list.filter((n) => n.type === "step" && n.themeId === node.themeId && n.ideaId === node.ideaId);
+    const refs = new Set();
+    for (const step of steps) for (const ref of step.refIds || []) refs.add(ref);
+    const conclusion = list.find(
+      (n) => n.type === "conclusion" && n.themeId === node.themeId && n.ideaId === node.ideaId
+    );
+    const latest = maxDay(node.updated, latestStepDate(steps));
+    const days = latest === null ? null : daysSince(latest, now);
+    return {
+      steps: typeof node.stepCount === "number" ? node.stepCount : steps.length,
+      sources: refs.size,
+      conclusion: conclusion ? (conclusion.unconfirmed ? "unconfirmed" : "confirmed") : null,
+      latest,
+      days,
+      fresh: days !== null && days >= 0 && days <= 7,
+      faded: days !== null && days > 30,
+    };
+  }
+  if (node.type === "theme") {
+    const ideas = list.filter((n) => n.type === "idea");
+    const own = ideas.filter((n) => n.themeId === node.themeId);
+    const steps = list.filter((n) => n.type === "step" && n.themeId === node.themeId);
+    const latest = latestStepDate(steps);
+    const count = typeof node.ideaCount === "number" ? node.ideaCount : own.length;
+    return {
+      count,
+      ratio: ideas.length ? own.length / ideas.length : 0,
+      latest,
+      days: latest === null ? null : daysSince(latest, now),
+      note: latest ? `${count} 问 · 最近 ${latest.slice(5, 7)}/${latest.slice(8, 10)}` : `${count} 问`,
+    };
+  }
+  return {};
+}
+
+function maxDay(a, b) {
+  if (typeof a !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(a)) return typeof b === "string" ? b : null;
+  if (typeof b !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b)) return a;
+  return a >= b ? a : b;
+}
 
 /** Lower bounds so a node never collapses into an unclickable dot. */
 const MIN_ART = {
@@ -118,18 +169,30 @@ export function peripheralScreen(screen, area, radius, role = "theme-away") {
   };
 }
 
-function artMarkup(placement) {
+function artMarkup(placement, nodes = new Map()) {
   const { node, detail, role } = placement;
   if (node.type === "core" || node.type === "theme") {
-    return brainArt({ seed: node.id, detail: detail || (role === "theme-away" ? "distant" : "theme") });
+    return (
+      brainArt({ seed: node.id, detail: detail || (role === "theme-away" ? "distant" : "theme") }) +
+      (node.type === "theme" ? activityArc(nodeVisual(node, nodes).ratio) : "")
+    );
   }
-  if (node.type === "idea") return ideaGlyph(hashString(node.id) % 97);
+  if (node.type === "idea") {
+    const v = nodeVisual(node, nodes);
+    return ideaGlyph({
+      seed: hashString(node.id) % 97,
+      steps: v.steps,
+      sources: v.sources,
+      conclusion: v.conclusion,
+      fresh: v.fresh,
+    });
+  }
   if (node.type === "step") return stepGlyph(node.family);
   if (node.type === "conclusion") return conclusionGlyph();
   return sourceGlyph();
 }
 
-function labelMarkup(placement) {
+function labelMarkup(placement, nodes = new Map()) {
   const { node } = placement;
   if (node.type === "core") {
     return field("node-kicker", node.latin) + field("node-title", node.label);
@@ -138,7 +201,7 @@ function labelMarkup(placement) {
     return (
       field("node-kicker", `${node.code || ""} ${node.latin || ""}`.trim()) +
       field("node-title", node.label) +
-      field("node-note", `${node.ideaCount} 个问题`)
+      field("node-note", nodeVisual(node, nodes).note || `${node.ideaCount} 个问题`)
     );
   }
   if (node.type === "idea") {
@@ -146,27 +209,32 @@ function labelMarkup(placement) {
   }
   if (node.type === "step") {
     return (
-      field("node-kicker", `${pad(node.index)} · ${node.kind || ""}`) +
+      field("node-kicker", `${pad(node.index)} · ${node.index === 1 ? "起点 · " : ""}${node.kind || ""}`) +
       field("node-title", node.label) +
       field("node-note", node.date || "")
     );
   }
   if (node.type === "conclusion") {
-    return field("node-kicker", "阶段理解") + field("node-title", node.shortTitle || node.label);
+    return field("node-kicker", "当前理解") + field("node-title", node.shortTitle || node.label);
   }
   return field("node-kicker", "来源") + field("node-title", node.label);
 }
 
-export function nodeMarkup(placement) {
+export function nodeMarkup(placement, nodes = new Map()) {
   return `<span class="node-art"><svg viewBox="-110 -110 220 220" aria-hidden="true">${artMarkup(
-      placement
-    )}</svg>${
+      placement,
+      nodes
+    )}${
+      placement.node.type === "step" && placement.node.isNewest
+        ? `<circle class="glyph-newest" cx="0" cy="0" r="78" />`
+        : ""
+    }</svg>${
       placement.node.type === "step" ? `<span class="node-index">${pad(placement.node.index)}</span>` : ""
     }${
       placement.node.type === "step" && placement.node.refIds?.length
         ? `<span class="node-sources" aria-hidden="true">${placement.node.refIds.length}</span>`
         : ""
-    }</span>` + `<span class="node-label label--${placement.labelSide}">${labelMarkup(placement)}</span>`;
+    }</span>` + `<span class="node-label label--${placement.labelSide}">${labelMarkup(placement, nodes)}</span>`;
 }
 
 export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onActivate, onHoverChange }) {
@@ -176,6 +244,11 @@ export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onA
   orbit.setAttribute("class", "network-orbit");
   orbit.setAttribute("aria-hidden", "true");
   edgesSvg.appendChild(orbit);
+  // 第六期：主线下的淡时间轴，与回放共用日期序，选中点同步点亮。
+  const timelineG = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  timelineG.setAttribute("class", "timeline-axis");
+  timelineG.setAttribute("aria-hidden", "true");
+  edgesSvg.appendChild(timelineG);
   const connectorEl = edgesSvg.querySelector("#popover-connector-path");
   /** @type {Map<string, any>} */
   const rendered = new Map();
@@ -206,6 +279,10 @@ let pendingGrow = null;
   /** 最近一次步骤日期距今天数。没有可用日期时为 null，亮度落在最暗端。 */
   let recencyDays = null;
   let breatheElapsed = 0;
+  /** 内存图谱节点：指纹、主题弧与副标题都从它派生，不改数据结构。 */
+  let graphNodes = new Map();
+  let timeline = null;
+  let timelineSig = "";
 
   noHover.addEventListener("change", () => clearHover());
 
@@ -230,7 +307,7 @@ let pendingGrow = null;
     if (placement.node.connection) el.dataset.connection = placement.node.connection;
     if (placement.node.isNewest) el.dataset.newest = "true";
     el.setAttribute("aria-label", ariaLabel(placement));
-    el.innerHTML = nodeMarkup(placement);
+    el.innerHTML = nodeMarkup(placement, graphNodes);
 
     el.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -274,9 +351,11 @@ let pendingGrow = null;
    */
   function setLayout(layout, graphEdges, { collapse = false, nodes = null, growInto = false } = {}) {
     if (nodes) {
+      graphNodes = nodes instanceof Map ? nodes : new Map(nodes);
       const latest = latestStepDate(nodes);
       recencyDays = latest ? daysSince(latest) : null;
       applyCoreBreath();
+      applyFingerprints();
     }
     orbit.style.display = [...layout.placements.values()].some((p) => p.orbitAngle !== null) ? "" : "none";
     const previous = placements;
@@ -328,7 +407,7 @@ let pendingGrow = null;
         }
       }
       if (view.placement.role !== placement.role || view.placement.detail !== placement.detail || view.placement.labelSide !== placement.labelSide) {
-        view.el.innerHTML = nodeMarkup(placement);
+        view.el.innerHTML = nodeMarkup(placement, graphNodes);
         view.el.dataset.role = placement.role;
       }
       view.placement = placement;
@@ -600,6 +679,85 @@ let pendingGrow = null;
     }
   }
 
+  /** 问题指纹与主题弧的亮度变量：>30 天整体降到 0.75，7 天内圆心呼吸。 */
+  function applyFingerprints() {
+    for (const [, view] of rendered) {
+      const type = view.placement.node.type;
+      if (type !== "idea" && type !== "theme") continue;
+      const v = nodeVisual(view.placement.node, graphNodes);
+      if (type === "idea") {
+        view.el.dataset.faded = v.faded ? "true" : "false";
+        view.el.style.setProperty(
+          "--fresh-level",
+          v.fresh ? coreBrightness(Math.max(0, v.days ?? 0), 0, { breathe: false }).toFixed(3) : ""
+        );
+      } else {
+        view.el.style.setProperty("--arc-bright", coreBrightness(v.days, 0, { breathe: false }).toFixed(3));
+      }
+    }
+  }
+
+  /** 时间轴刻度：结构与选中变化才重建，位置每帧只改属性。 */
+  function setTimeline(marks, selectedId = null) {
+    timeline = marks && marks.length ? { marks, selectedId: selectedId || null } : null;
+    syncTimeline(true);
+  }
+
+  function setTimelineSelected(id) {
+    const next = id || null;
+    if (!timeline || timeline.selectedId === next) return;
+    timeline.selectedId = next;
+    syncTimeline(true);
+  }
+
+  function syncTimeline(force = false) {
+    if (!timeline) {
+      if (timelineG.childElementCount) timelineG.innerHTML = "";
+      timelineSig = "";
+      return;
+    }
+    const pts = [];
+    for (const mark of timeline.marks) {
+      const view = rendered.get(mark.id);
+      if (!view) return;
+      pts.push(camera.toScreen(view.cur));
+    }
+    const sig = timeline.marks
+      .map((mark) => mark.id + (mark.selected || timeline.selectedId === mark.id ? "*" : ""))
+      .join("|");
+    if (force || sig !== timelineSig) {
+      timelineSig = sig;
+      const parts = ['<line class="timeline-line" x1="0" y1="0" x2="0" y2="0" />'];
+      timeline.marks.forEach((mark, i) => {
+        if (i && mark.gapDays > 7) parts.push(`<text class="timeline-gap">+${mark.gapDays} 天</text>`);
+        parts.push(
+          `<circle class="timeline-dot${mark.selected || timeline.selectedId === mark.id ? " is-selected" : ""}" r="3.5" />`
+        );
+      });
+      timelineG.innerHTML = parts.join("");
+    }
+    const baseY = Math.max(...pts.map((pt) => pt.y)) + 78;
+    const children = [...timelineG.children];
+    const line = children[0];
+    line.setAttribute("x1", String(pts[0].x));
+    line.setAttribute("x2", String(pts[pts.length - 1].x));
+    line.setAttribute("y1", String(baseY));
+    line.setAttribute("y2", String(baseY));
+    let k = 1;
+    let prevX = pts[0].x;
+    timeline.marks.forEach((mark, i) => {
+      const gapEl = i && mark.gapDays > 7 ? children[k++] : null;
+      const dot = children[k++];
+      dot.setAttribute("cx", String(pts[i].x));
+      dot.setAttribute("cy", String(baseY));
+      if (gapEl) {
+        gapEl.setAttribute("x", String((prevX + pts[i].x) / 2));
+        gapEl.setAttribute("y", String(baseY + 14));
+      }
+      prevX = pts[i].x;
+    });
+  }
+
   function frame(dt) {
     let busy = camera.step(dt);
     syncLod();
@@ -724,11 +882,15 @@ let pendingGrow = null;
       pendingGrow = null;
       growIn(settleGrow.previous);
     }
+    syncTimeline();
+
     return busy;
   }
 
   return {
     setLayout,
+    setTimeline,
+    setTimelineSelected,
     isCollapsing,
     setSelection,
     setHoverSuspended,

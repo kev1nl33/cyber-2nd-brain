@@ -7,6 +7,8 @@
  * is reachable with zoom out or reset.
  */
 
+import { datedSteps } from "./replay.js";
+
 const SIZE = {
   core: 300,
   coreAway: 150,
@@ -158,6 +160,30 @@ function layoutTheme(graph, view, { portrait, compact, viewport = { width: 1440,
   });
 }
 
+/**
+ * 主线时间轴刻度：与回放共用同一套严格日期排序，只取有效日期。
+ * gapDays 是与前一个有效步骤的间隔天数（首个为 0），selected 标记回放/选中同步。
+ * @param {any[]} steps
+ * @param {string|null} selectedId
+ */
+export function timelineSteps(steps, selectedId = null) {
+  const dated = datedSteps(steps || []);
+  return dated.map((step, i) => ({
+    id: step.id,
+    date: step.date,
+    gapDays: i
+      ? Math.max(0, Math.round((Date.parse(step.date) - Date.parse(dated[i - 1].date)) / 86_400_000))
+      : 0,
+    selected: step.id === selectedId,
+  }));
+}
+
+/** 横屏每步上行量：日期间隔越大概率越大，夹在 8～14px；无日期退回 10。 */
+function riseFor(gapDays) {
+  if (typeof gapDays !== "number" || !Number.isFinite(gapDays)) return 10;
+  return Math.round(Math.min(14, 8 + gapDays * 0.35));
+}
+
 function layoutIdea(graph, view, { portrait, compact }, put) {
   const theme = graph.theme(view.themeId);
   const idea = graph.idea(view.themeId, view.ideaId);
@@ -210,13 +236,13 @@ function layoutIdea(graph, view, { portrait, compact }, put) {
   });
 
   let last = null;
+  const gaps = new Map(timelineSteps(steps).map((mark) => [mark.id, mark.gapDays]));
+  let lineY = anchor.start.y;
   steps.forEach((step, i) => {
+    if (i > 0) lineY -= riseFor(gaps.get(step.id));
     const pos = portrait
       ? { x: i % 2 === 0 ? -98 : 22, y: anchor.start.y + i * spacing }
-      : {
-          x: anchor.start.x + i * spacing,
-          y: Math.sin(i * 1.06 + 0.42) * 96 + i * 10,
-        };
+      : { x: anchor.start.x + i * spacing, y: lineY };
     last = put(step, {
       ...pos,
       size: SIZE.step,
@@ -246,13 +272,14 @@ function layoutIdea(graph, view, { portrait, compact }, put) {
   });
 
   if (conclusion && last) {
+    const endY = portrait ? last.y + spacing * 0.96 : last.y - 8;
     put(conclusion, {
       x: portrait ? 0 : last.x + spacing * 0.92,
-      y: portrait ? last.y + spacing * 0.96 : last.y * 0.35,
+      y: endY,
       size: SIZE.conclusion,
       role: "conclusion",
       parentId: last.id,
-      labelSide: portrait ? "bottom" : last.y * 0.35 <= 0 ? "top" : "bottom",
+      labelSide: portrait ? "bottom" : endY <= 0 ? "top" : "bottom",
       focus: true,
       z: 2,
     });

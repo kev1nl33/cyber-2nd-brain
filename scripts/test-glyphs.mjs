@@ -3,7 +3,7 @@
  * 运行：node scripts/test-glyphs.mjs。 */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ideaGlyph, stepGlyph, conclusionGlyph, sourceGlyph } from "../src/glyphs.js";
+import { activityArc, ideaGlyph, stepGlyph, conclusionGlyph, sourceGlyph } from "../src/glyphs.js";
 
 function coords(svg) {
   return [...svg.matchAll(/-?\d+(?:\.\d+)?/g)].map(Number);
@@ -32,31 +32,25 @@ test("每个字形都以光晕开头，且只含 path 与 circle", () => {
   }
 });
 
-test("ideaGlyph：默认 seed 0，同 seed 确定，seed 改变尖刺角度与长度", () => {
-  assert.equal(ideaGlyph(), ideaGlyph(0));
-  const a = ideaGlyph(0);
-  const b = ideaGlyph(3);
-  assert.notEqual(a, b);
-  assert.equal([...a.matchAll(/class="glyph-spike"/g)].length, 7);
-  assert.equal([...b.matchAll(/class="glyph-spike"/g)].length, 7);
-  // 尖刺根部在半径 62 的圆上：首段 M 的坐标模长应为 62
-  const start = a.match(/glyph-spike"[^d]*d="M (-?\d+\.?\d*) (-?\d+\.?\d*)/) ;
-  const x = Number(start[1]);
-  const y = Number(start[2]);
-  assert.ok(Math.abs(Math.hypot(x, y) - 62) < 0.2, `尖刺根部半径 ${Math.hypot(x, y)}`);
-  assert.ok(a.includes('class="glyph-core"') && a.includes('class="glyph-pupil"'));
-  assert.equal([...a.matchAll(/class="glyph-ring"/g)].length, 2);
-});
-
-test("ideaGlyph：seed 按 7 取模，差 7 的种子尖刺角度相同但长度不同", () => {
-  const angle = (svg) => {
-    const m = svg.match(/d="M (-?\d+\.?\d*) (-?\d+\.?\d*)/);
-    return Math.atan2(Number(m[2]), Number(m[1]));
-  };
-  const first = ideaGlyph(2);
-  const shifted = ideaGlyph(9);
-  assert.ok(Math.abs(angle(first) - angle(shifted)) < 1e-9);
-  assert.notEqual(first, shifted);
+test("idea fingerprint encodes exact steps, sources and conclusion", () => {
+  for (const n of [0, 1, 2, 5, 12]) {
+    const svg = ideaGlyph({ seed: 3, steps: n, sources: 20, conclusion: "confirmed", fresh: true });
+    assert.equal([...svg.matchAll(/class="glyph-ring(?: |")/g)].length, n);
+    assert.equal([...svg.matchAll(/class="glyph-spike"/g)].length, 9);
+    assert.equal(svg.includes("glyph-ring--warm"), n > 0);
+    assert.equal(svg.includes("glyph-ring--pending"), false);
+    const pending = ideaGlyph({ seed: 3, steps: n, sources: 20, conclusion: "unconfirmed" });
+    assert.equal(pending.includes("glyph-ring--pending"), n > 0);
+    assert.match(svg, /glyph-fresh/);
+    assert.equal(/NaN|Infinity/.test(svg), false);
+  }
+  assert.match(ideaGlyph({ steps: 2, conclusion: "unconfirmed" }), /glyph-ring--pending/);
+  assert.notEqual(ideaGlyph({ seed: 0, sources: 2 }), ideaGlyph({ seed: 3, sources: 2 }));
+  for (const options of [{}, { steps: NaN, sources: NaN, seed: NaN }, { steps: -2 }]) {
+    const svg = ideaGlyph(options);
+    assert.equal(/NaN|Infinity/.test(svg), false);
+    assert.equal(svg.includes('class="glyph-ring'), false);
+  }
 });
 
 test("stepGlyph：family 决定形状，未知 family 退回圆形", () => {
@@ -105,4 +99,13 @@ test("sourceGlyph：冷色文档折角与两条不等长横线", () => {
   assert.match(svg, /class="glyph-fold" d="M22,-62 L22,-34 L48,-34"/);
   const rules = [...svg.matchAll(/class="glyph-rule" d="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(rules, ["M-26,-6 L30,-6", "M-26,20 L16,20"]);
+});
+
+test("activityArc：比例转弧，0 或非法比例不画", () => {
+  assert.equal(activityArc(0), "");
+  assert.equal(activityArc(-0.5), "");
+  assert.equal(activityArc(NaN), "");
+  assert.equal(activityArc(2), activityArc(1));
+  assert.match(activityArc(0.5), /class="glyph-arc"/);
+  assert.match(activityArc(1), /A 94 94 0 1 1/); // ratio=1 画满整圈，large-arc=1
 });

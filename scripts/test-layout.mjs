@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { loadGraph } from "../src/graph.js";
-import { peripheralScreen, nodeMarkup } from "../src/scene.js";
+import { peripheralScreen, nodeMarkup, nodeVisual } from "../src/scene.js";
 import { createCamera } from "../src/camera.js";
 import { computeLayout, boundsOf } from "../src/layout.js";
 
@@ -266,5 +266,40 @@ test("兄弟问题随相机自然离屏，大幅平移仍保持半圆间距", ()
       assert.ok(gap(after) > 1, "sibling entries must not collapse together");
       assert.ok(Math.abs(gap(before) - gap(after)) < 1e-8, "panning preserves sibling spacing");
     }
+  }
+});
+
+ test("phase6 statistics stay derived and use all questions", () => {
+  const nodes = new Map([
+    ["i", { id: "i", type: "idea", themeId: "t", ideaId: "a", stepCount: 2 }],
+    ["j", { id: "j", type: "idea", themeId: "u", ideaId: "b" }],
+    ["s", { type: "step", themeId: "t", ideaId: "a", date: "2026-10-23", refIds: ["r", "r", "z"] }],
+    ["c", { type: "conclusion", themeId: "t", ideaId: "a", unconfirmed: true }],
+  ]);
+  const before = JSON.stringify([...nodes]);
+  const v = nodeVisual(nodes.get("i"), nodes, new Date("2026-10-24"));
+  assert.equal(v.sources, 2);
+  assert.equal(v.conclusion, "unconfirmed");
+  assert.equal(v.fresh, true);
+  assert.equal(nodeVisual({ type: "theme", themeId: "t" }, nodes).ratio, 0.5);
+  assert.equal(nodeVisual({ type: "theme", themeId: "t" }, nodes).latest, "2026-10-23");
+  assert.equal(JSON.stringify([...nodes]), before);
+  const markup = nodeMarkup({ node: { type: "step", index: 1, isNewest: true }, labelSide: "bottom" });
+  assert.match(markup, /起点/);
+  assert.match(markup, /glyph-newest/);
+  assert.match(nodeMarkup({node: {type: "conclusion"}, labelSide: "bottom"}), /当前理解/);
+});
+
+test("landscape steps rise by dated intervals and conclusion follows last step", () => {
+  const graph = useSampleGraph();
+  for (const idea of graph.ideas()) {
+    const steps = graph.steps(idea.themeId, idea.ideaId);
+    const layout = computeLayout(graph, { level:"idea", themeId:idea.themeId, ideaId:idea.ideaId }, DESKTOP);
+    for (let i=1;i<steps.length;i++) {
+      const rise = layout.placements.get(steps[i-1].id).y - layout.placements.get(steps[i].id).y;
+      assert.ok(rise >= 8 && rise <= 14, `rise ${rise}`);
+    }
+    const end = graph.conclusion(idea.themeId,idea.ideaId);
+    if (end && steps.length) assert.ok(layout.placements.get(end.id).y <= layout.placements.get(steps.at(-1).id).y);
   }
 });
