@@ -1,7 +1,7 @@
 import { loadData } from './data/load.js';
 import { buildModel } from './data/model.js';
 import { todayKey } from './data/dates.js';
-import { parse, redirectLegacy } from './router.js';
+import { parse, build, redirectLegacy } from './router.js';
 import { h, icon } from './ui/dom.js';
 import { createPrefs } from './ui/prefs.js';
 import { mountShell } from './ui/shell.js';
@@ -20,8 +20,16 @@ import { renderAtlas } from './pages/atlas.js';
 const model = buildModel(loadData(), { today: todayKey() });
 let page, shell;
 const store = createStore(model.mode==='sample'?sessionStorage:localStorage,model.mode==='sample'?'c2b.overlay.sample.v1':'c2b.overlay.v1');
-const ctx = {model, overlay:store.load(), route:null,
-  navigate(hash, {replace=false}={}) { if (replace) {history.replaceState(null,'',hash);render();} else location.hash=hash; },
+function samePage(a,b) {
+  return a?.page===b?.page && (b.page!=='question' || a.params.ideaId===b.params.ideaId) && (b.page!=='theme' || a.params.themeId===b.params.themeId);
+}
+const ctx = {model, overlay:store.load(), route:null, atlasOrigin:null,
+  navigate(hash, {replace=false}={}) {
+    const target=parse(hash);
+    if (replace || samePage(ctx.route,target)) {history.replaceState(null,'',hash);render();}
+    else location.hash=hash;
+  },
+  returnFromAtlas() { ctx.navigate(ctx.atlasOrigin ?? '#/'); },
   refresh() { render(true); },
 };
 ctx.prefs = createPrefs(()=>shell?.update());
@@ -57,20 +65,33 @@ function render(force=false) {
   const legacy=redirectLegacy(location.hash, model.themes.map(t=>t.id));
   if(legacy) history.replaceState(null,'',legacy);
   const route=parse(location.hash), previous=ctx.route;
+  if(route.page==='atlas' && previous && previous.page!=='atlas') ctx.atlasOrigin=build(previous);
   ctx.route=route;
-  const same=previous?.page===route.page && (route.page!=='question' || previous.params.ideaId===route.params.ideaId) && (route.page!=='theme' || previous.params.themeId===route.params.themeId);
-  if(same && page?.update && !force) {page.update(route);shell?.update();return;}
+  const same=samePage(previous,route);
+  if(same && page?.update && (!force || route.page==='review')) {page.update(route,{refresh:force});shell?.update();return;}
+  const active=document.activeElement;
   page?.destroy?.(); evidence.replaceChildren(); evidence.classList.remove('is-open');
   const renderers={question:renderQuestion,today:renderToday,review:renderReview,theme:renderTheme,lessons:renderLessons,sources:renderSources,timeline:renderTimeline,atlas:renderAtlas};
   page=renderers[route.page]?.(ctx,route) ?? {element:h('article',{},h('h1',{tabindex:'-1'},'资料'))};
   main.replaceChildren(page.element);
   if(page.evidence) evidence.append(page.evidence);
   shell?.update();
-  window.scrollTo(0,0);main.querySelector('h1:not(.visually-hidden)')?.focus({preventScroll:true});
+  const entry=main.querySelector('h1');
+  entry?.setAttribute('tabindex','-1');
+  if(!force) window.scrollTo(0,0);
+  if(!document.querySelector('[aria-modal="true"]') && (!force || !active?.isConnected)) (entry ?? main).focus({preventScroll:true});
   page.update?.(route);
 }
 shell=mountShell(ctx);
+document.addEventListener('click',event=>{
+  if(event.defaultPrevented || event.button!==0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const link=event.target instanceof Element ? event.target.closest('a[href]') : null;
+  if(!link || link.hasAttribute('download') || (link.target && link.target!=='_self')) return;
+  const url=new URL(link.href,location.href);
+  if(url.origin!==location.origin || url.pathname!==location.pathname || url.search!==location.search || !url.hash.startsWith('#/')) return;
+  event.preventDefault();ctx.navigate(url.hash);
+});
 window.addEventListener('hashchange',()=>render());
 window.addEventListener('keydown',e=>{if(e.defaultPrevented || document.querySelector('[aria-modal="true"]') || !(e.target instanceof Element)||e.target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])') || e.metaKey || e.ctrlKey || e.altKey)return;page?.onKey?.(e);});
-window.addEventListener('keydown',e=>{if(e.key!=='Escape'||e.defaultPrevented||document.querySelector('.modal-backdrop'))return;if(ctx.route?.page==='atlas'){e.preventDefault();ctx.navigate('#/');return;}ctx.escape?.(e);});
+window.addEventListener('keydown',e=>{if(e.key!=='Escape'||e.defaultPrevented||document.querySelector('.modal-backdrop'))return;if(ctx.route?.page==='atlas'){e.preventDefault();ctx.returnFromAtlas();return;}ctx.escape?.(e);});
 render();

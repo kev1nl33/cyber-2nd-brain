@@ -26,6 +26,9 @@ export function renderReview(ctx, initialRoute) {
   let queue = [];
   let filtered = [];
   const rows = new Map();
+  let drawnKey;
+  let drawnDone = false;
+  let tabsSignature = '';
   const element = h('section', { class: 'review' });
   const hiddenFile = h('input', { type: 'file', accept: 'application/json', hidden: true, onchange: async () => {
     const file = hiddenFile.files?.[0];
@@ -54,6 +57,9 @@ export function renderReview(ctx, initialRoute) {
     const done = Object.keys(ctx.overlay?.decisions ?? {}).length;
     const specs = [['all', '全部', queue.length], ['conn', '推断关联', queue.filter(i => i.type === 'conn').length],
       ['lesson', '待确认经验', queue.filter(i => i.type === 'lesson').length], ['idea', '候选问题', queue.filter(i => i.type === 'idea').length], ['done', '已处理', done]];
+    const signature = JSON.stringify([specs, route.params?.done, filter]);
+    if (signature === tabsSignature) return;
+    tabsSignature = signature;
     tabs.replaceChildren(...specs.map(([id, label, count]) => h('button', {
       type: 'button', role: 'tab', class: `review__tab${(route.params?.done ? id === 'done' : filter === id) ? ' is-active' : ''}`,
       'aria-selected': String(route.params?.done ? id === 'done' : filter === id), onclick: () => {
@@ -187,13 +193,37 @@ export function renderReview(ctx, initialRoute) {
     selected = requested ?? filtered[0] ?? null;
     element.classList.toggle('review--detail', Boolean(route.params?.key));
     element.classList.toggle('review--done', Boolean(route.params?.done));
-    drawTabs(); rows.clear();
-    if (route.params?.done) { body.replaceChildren(drawDone()); return; }
-    list = h('ul', { class: 'review__list', 'aria-label': '待核对条目' }, filtered.map(item => {
-      const row = renderReviewItem(item, { model, selected: item.key === selected?.key, onSelect: () => { if (!busy) go(item.key); } });
-      rows.set(item.key, row); return row;
-    }));
-    body.replaceChildren(list, drawDetail());
+    drawTabs();
+    if (route.params?.done) { body.replaceChildren(drawDone()); drawnDone = true; return; }
+    if (!list) list = h('ul', { class: 'review__list', 'aria-label': '待核对条目' });
+    const keys = new Set(filtered.map(item => item.key));
+    for (const [key, row] of rows) if (!keys.has(key)) { row.remove(); rows.delete(key); }
+    let cursor = list.firstChild;
+    for (const item of filtered) {
+      let row = rows.get(item.key);
+      if (!row) {
+        row = renderReviewItem(item, { model, onSelect: () => { if (!busy) go(item.key); } });
+        rows.set(item.key, row);
+      }
+      const active = item.key === selected?.key;
+      row.classList.toggle('is-selected', active);
+      const link = row.querySelector('a');
+      if (active) link.setAttribute('aria-current', 'true');
+      else link.removeAttribute('aria-current');
+      if (row !== cursor) list.insertBefore(row, cursor);
+      cursor = row.nextSibling;
+    }
+    if (drawnDone || !list.isConnected) body.replaceChildren(list);
+    if (drawnDone || drawnKey !== selected?.key || !detail?.isConnected) {
+      const oldDetail = detail;
+      const hadFocus = oldDetail?.contains(document.activeElement);
+      const nextDetail = drawDetail();
+      if (oldDetail?.isConnected) oldDetail.replaceWith(nextDetail);
+      else body.append(nextDetail);
+      drawnKey = selected?.key;
+      if (!document.querySelector('[aria-modal="true"]') && (hadFocus || (route.params?.key && window.innerWidth < 640))) nextDetail.querySelector('h2[tabindex]')?.focus({ preventScroll: true });
+    }
+    drawnDone = false;
   }
   function update(nextRoute) {
     if (nextRoute.page !== 'review') return false;
