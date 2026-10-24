@@ -408,6 +408,10 @@ function scatter(star, rng, placed) {
   });
 
   return {
+    setDepth(level, popover = false) {
+      const value = (level === "overview" ? 1 : level === "theme" ? 0.8 : 0.6) * (popover ? 0.5 : 1);
+      layer.style.opacity = String(value);
+    },
     frame,
     /** @param {string|null} id 当前打开的经验或模式；null 表示已关闭。 */
     setOpen(id) {
@@ -453,6 +457,7 @@ function magnitudeOf(magnitude) {
 function noop() {
   return {
     frame() {},
+    setDepth() {},
     setOpen() {},
     anchorOf() {
       return null;

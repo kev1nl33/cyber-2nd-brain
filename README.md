@@ -151,6 +151,8 @@ node scripts/test-perf-budget.mjs
 node scripts/test-effects-perf.mjs
 ```
 
+第五期的离线检查复用 `test-layout.mjs`（外围椭圆、focus 适配及桌面主题脑入屏）和 `test-effects-perf.mjs`（光环跟随与纹理复用、深度亮度、10 秒流星上限、方向渐变及零重复布局写入）。动效关闭时深度亮度直接到位；三种视口的标签碰撞、光环与步骤包围盒、4 倍 CPU 节流响应仍需浏览器验收。
+
 </details>
 
 <details>

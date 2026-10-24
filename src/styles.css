@@ -426,7 +426,7 @@ button {
 }
 
 .edge.is-dim {
-  opacity: 0.26;
+  opacity: 0.35;
 }
 
 .edge.is-active .edge-line {
@@ -2047,6 +2047,7 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .stars { transition: none; }
   .brain-pulse,
   .edge-flow {
     display: none;
@@ -2148,3 +2149,30 @@ button {
     justify-content: center;
   }
 }
+
+/* Phase 5: quiet network context and single-line peripheral entries. */
+.network-orbit {
+  fill: none;
+  stroke: rgba(126, 242, 176, 0.07);
+  stroke-width: 1;
+  stroke-dasharray: 3 12;
+  pointer-events: none;
+}
+.node[data-role="core-away"] .node-title { font-size: 12px; }
+.node[data-role="idea-away"] .node-title {
+  display: block;
+  max-width: 132px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stars { transition: opacity 1s linear; }
+.app[data-motion="off"] .stars { transition: none; }
+
+
+.edge--recorded { --edge-color: rgba(160, 243, 199, 0.5); }
+.edge--recorded.is-active { --edge-color: rgba(205, 255, 226, 0.82); }
+.edge--inferred { --edge-color: var(--cool-soft); }
+.edge--inferred.is-active { --edge-color: rgba(158, 234, 244, 0.9); }
+.edge--source .edge-line { stroke: var(--cool-soft); }

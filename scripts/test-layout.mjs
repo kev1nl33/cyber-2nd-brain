@@ -4,6 +4,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { loadGraph } from "../src/graph.js";
+import { peripheralScreen } from "../src/scene.js";
+import { createCamera } from "../src/camera.js";
 import { computeLayout, boundsOf } from "../src/layout.js";
 
 const DESKTOP = { width: 1440, height: 900 };
@@ -137,7 +139,7 @@ test("问题层：宽屏放兄弟问题做入口，紧凑屏不放", () => {
   const desktop = computeLayout(graph, view, DESKTOP);
   const sibling = desktop.placements.get("idea:t/i2");
   assert.equal(sibling.role, "idea-away");
-  assert.deepEqual([sibling.x, sibling.y], [-398, 120]);
+  assert.deepEqual([sibling.x, sibling.y], [-220 - 160 * Math.cos(10 * Math.PI / 180), -180 + 170 * Math.sin(10 * Math.PI / 180)]);
   assert.equal(sibling.dim, true);
   const compact = computeLayout(graph, view, SQUARE);
   assert.equal(compact.placements.has("idea:t/i2"), false);
@@ -179,4 +181,38 @@ test("boundsOf：多节点取联合框，宽高与中心一致", () => {
   assert.equal(box.width, 250);
   assert.equal(box.height, 250);
   assert.equal(box.cx, 5);
+});
+
+
+test("第五期：外围沿对角线大椭圆均分，总脑在左上且不进focus", () => {
+  const graph = useSampleGraph();
+  for (const viewport of [DESKTOP, PHONE, { width: 408, height: 543 }]) {
+    const layout = computeLayout(graph, { level: "theme", themeId: "develop" }, viewport);
+    const core = layout.placements.get("core");
+    assert.ok(core.x < 0 && core.y < 0);
+    const peripheral = [...layout.placements.values()].filter((p) => p.orbitAngle !== null);
+    assert.equal(peripheral.length, 5);
+    const radius = Math.hypot(viewport.width, viewport.height) * 0.42;
+    for (const p of peripheral) {
+      assert.ok(Math.abs(Math.hypot(p.x, p.y * viewport.width / viewport.height) - radius) < 1e-8);
+      assert.equal(p.detail, "distant");
+      assert.ok(!layout.focus.includes(p));
+    }
+  }
+});
+
+test("第五期：1440桌面问题主题脑完整入屏，fit不包含外围", () => {
+  const graph = useSampleGraph();
+  for (const theme of graph.themes()) for (const idea of graph.ideas(theme.themeId)) {
+    const layout = computeLayout(graph, { level: "idea", themeId: theme.themeId, ideaId: idea.ideaId }, DESKTOP);
+    const camera = createCamera();
+    camera.setArea({ ...DESKTOP, insets: { top: 70, bottom: 90, left: 18, right: 18 } });
+    camera.fit(boundsOf(layout.focus), boundsOf(layout.focus), layout.fit);
+    camera.snap();
+    const p = layout.placements.get(theme.id);
+    const radius = p.size * camera.current.scale / 2;
+    const screen = peripheralScreen(camera.toScreen(p), camera.area, radius);
+    assert.ok(screen.x - radius >= 0 && screen.x + radius <= DESKTOP.width);
+    assert.ok(screen.y - radius >= 0 && screen.y + radius <= DESKTOP.height);
+  }
 });

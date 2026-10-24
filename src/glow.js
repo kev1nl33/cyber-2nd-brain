@@ -70,91 +70,60 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-/** 屏幕中心的光环：缓存静态外晕，只推进亮弧角度。 */
+/** Unit-radius halo texture; position and scale are supplied by the scene. */
+export const EASE_TAU = 0.17;
+
 export function createGlow(ctx) {
   const noop = { frame() {}, resize() {} };
   if (!ctx) return noop;
   const halo = document.createElement("canvas");
   const haloCtx = halo.getContext("2d");
   if (!haloCtx) return noop;
-
+  const unit = 256;
   const turn = Math.PI * 2;
   let angle = 0;
-  let cx = 0;
-  let cy = 0;
-  let radius = 0;
-  let segments = 48;
-  let lineWidth = 1.5;
-  let ring = null;
-  /** 每段的起角、中角、止角。段数只在 resize 变，帧循环里不再逐段重乘。
-   *  角度表达式与原先逐帧的 i * step / start + step / 2 / start + step 完全一致。 */
-  let starts = [];
-  let mids = [];
-  let ends = [];
+  let current = null;
+  let green = "#7ef2b0";
+  let ready = false;
 
-  function resize(width, height, dpr) {
-    halo.width = ctx.canvas.width;
-    halo.height = ctx.canvas.height;
-    haloCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    cx = width / 2;
-    cy = height / 2;
-    const shortSide = Math.min(width, height);
-    const mobile = shortSide < 560;
-    radius = shortSide * 0.25 * (mobile ? 0.8 : 1);
-    segments = mobile ? 24 : 48;
-    lineWidth = mobile ? 2 : 1.5;
-    ring = null;
-    starts = [];
-    mids = [];
-    ends = [];
-    const green = getComputedStyle(document.documentElement).getPropertyValue("--green").trim();
-    if (!radius) return;
-
-    const step = turn / segments;
-    for (let i = 0; i < segments; i++) {
-      const start = i * step;
-      starts.push(start);
-      mids.push(start + step / 2);
-      ends.push(start + step);
-    }
-
-    const outer = haloCtx.createRadialGradient(cx, cy, radius * 0.75, cx, cy, radius * 1.25);
+  function resize() {
+    if (ready) return;
+    halo.width = halo.height = unit * 2.5;
+    green = getComputedStyle(document.documentElement).getPropertyValue("--green").trim() || green;
+    const c = halo.width / 2;
+    const outer = haloCtx.createRadialGradient(c, c, unit * 0.75, c, c, unit * 1.25);
     outer.addColorStop(0, withAlpha(green, 0));
-    outer.addColorStop(0.5, withAlpha(green, mobile ? 0.07 : 0.1));
+    outer.addColorStop(0.5, withAlpha(green, 0.1));
     outer.addColorStop(1, withAlpha(green, 0));
     haloCtx.fillStyle = outer;
-    haloCtx.fillRect(0, 0, width, height);
-
-    ring = ctx.createRadialGradient(cx, cy, Math.max(0, radius - lineWidth), cx, cy, radius + lineWidth);
-    ring.addColorStop(0, withAlpha(green, 0));
-    ring.addColorStop(0.5, withAlpha(green, mobile ? 0.25 : 0.35));
-    ring.addColorStop(1, withAlpha(green, 0));
+    haloCtx.fillRect(0, 0, halo.width, halo.height);
+    ready = true;
   }
 
-  function frame(dt, motion) {
-    if (!ring) return;
+  function frame(dt, motion, target) {
+    if (!ready || !target || !(target.radius > 0)) return;
+    const k = !motion || !current ? 1 : 1 - Math.exp(-dt / EASE_TAU);
+    current ||= { ...target };
+    for (const key of ["x", "y", "radius"]) current[key] += (target[key] - current[key]) * k;
     if (motion) angle = (angle + dt * 0.4) % turn;
-
-    // 离屏图与主画布设备像素一致，用单位变换贴图，避免再次乘 DPR。
+    const { x, y, radius } = current;
+    const alpha = target.role === "idea-active" ? 0.6 : 1;
     ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(halo, 0, 0);
-    ctx.restore();
-
-    ctx.save();
-    ctx.strokeStyle = ring;
-    ctx.lineWidth = lineWidth;
-    for (let i = 0; i < segments; i++) {
-      const distance = Math.atan2(Math.sin(mids[i] - angle), Math.cos(mids[i] - angle));
-      const brightness = Math.exp(-(distance * distance) / 0.5);
-      ctx.globalAlpha = 0.18 + brightness * 0.82;
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(halo, x - radius * 1.25, y - radius * 1.25, radius * 2.5, radius * 2.5);
+    ctx.strokeStyle = withAlpha(green, 0.35);
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 48; i++) {
+      const start = i * turn / 48;
+      const mid = start + turn / 96;
+      const distance = Math.atan2(Math.sin(mid - angle), Math.cos(mid - angle));
+      ctx.globalAlpha = alpha * (0.18 + Math.exp(-(distance * distance) / 0.5) * 0.82);
       ctx.beginPath();
-      ctx.arc(cx, cy, radius, starts[i], ends[i]);
+      ctx.arc(x, y, radius, start, start + turn / 48);
       ctx.stroke();
     }
     ctx.restore();
   }
-
   return { frame, resize };
 }
 

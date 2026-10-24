@@ -86,6 +86,7 @@ export function startApp() {
     el: el.popover,
     onClose: () => {
       state.popover = null;
+      syncDepth();
       stars.setOpen(null);
       scene.setConnector(null);
       scene.setFlowing(false);
@@ -179,10 +180,19 @@ export function startApp() {
   }
 
   function fitCamera() {
-    camera.fit(boundsOf(layout.focus), boundsOf(layout.placements.values()), layout.fit);
+    camera.fit(boundsOf(layout.focus), boundsOf(layout.focus), layout.fit);
+  }
+
+  function syncDepth() {
+    const level = state.route.level;
+    const open = Boolean(state.popover);
+    background.setDepth(level, open);
+    stars.setDepth(level, open);
+    meteors.setDepth(level, open);
   }
 
   function applySelection() {
+    syncDepth();
     scene.setFlowing(Boolean(state.popover) && !replaySelection);
     const selected = state.selectedId ? graph.nodes.get(state.selectedId) : null;
     if (replaySelection && selected?.type === "step") {
@@ -209,7 +219,6 @@ export function startApp() {
     if (selected.type === "step" || selected.type === "source" || selected.type === "conclusion") {
       const themeId = selected.themeId;
       const ideaId = selected.ideaId;
-      const idea = graph.idea(themeId, ideaId);
       const steps = graph.steps(themeId, ideaId);
       const stepNode =
         selected.type === "step"
@@ -219,14 +228,9 @@ export function startApp() {
           : steps[steps.length - 1];
       const limit = stepNode ? stepNode.index : steps.length;
 
-      if (idea) nodeIds.add(idea.id);
-      for (const step of steps) {
-        if (step.index > limit) continue;
-        nodeIds.add(step.id);
-      }
-      for (const edge of graph.edges) {
-        if (nodeIds.has(edge.from) && nodeIds.has(edge.to)) edgeIds.add(edge.id);
-      }
+      const path = focusPath(limit);
+      for (const id of path?.nodeIds || []) nodeIds.add(id);
+      for (const id of path?.edgeIds || []) edgeIds.add(id);
       if (selected.type === "source") {
         edgeIds.add(`e:${stepNode?.id}>${selected.refId}`);
       }
@@ -251,7 +255,7 @@ export function startApp() {
    * 聚焦模式的当前路径：当前问题、它的整条步骤链、已展开步骤的来源节点，
    * 以及连接这些节点的连线。总览和主题层没有当前问题，返回 null。
    */
-  function focusPath() {
+  function focusPath(limit = Infinity) {
     const { level, themeId, ideaId } = state.route;
     if (level !== "idea" && level !== "step") return null;
     const idea = graph.idea(themeId, ideaId);
@@ -259,6 +263,7 @@ export function startApp() {
 
     const nodeIds = new Set([idea.id]);
     for (const step of graph.steps(themeId, ideaId)) {
+      if (step.index > limit) continue;
       nodeIds.add(step.id);
       if (!state.expanded.has(step.id)) continue;
       for (const source of graph.sources(step.id)) nodeIds.add(source.id);
@@ -266,7 +271,7 @@ export function startApp() {
     // The chain ends on the idea's conclusion; keep it lit together with the
     // edge from the last step (picked up by the node-pair scan below).
     const conclusion = graph.conclusion(themeId, ideaId);
-    if (conclusion) nodeIds.add(conclusion.id);
+    if (conclusion && limit === Infinity) nodeIds.add(conclusion.id);
 
     const edgeIds = new Set();
     for (const edge of graph.edges) {
@@ -515,6 +520,7 @@ export function startApp() {
       (previous.level === "overview") !== (next.level === "overview");
   const growInto = structuralChange && divesIn(previous, next);
     state.route = next;
+    syncDepth();
 
     if (structuralChange) state.expanded.clear();
 
@@ -1033,7 +1039,7 @@ export function startApp() {
     measureInsets();
     resizeMeteors();
     background.resize();
-    if (!state.motion && !document.hidden) background.frame(0, camera.current, false);
+    if (!state.motion && !document.hidden) background.frame(0, camera.current, false, scene.glowTarget());
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => render({ refit: !camera.userAdjusted }), 60);
   });
@@ -1046,7 +1052,7 @@ export function startApp() {
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) pauseReplay();
     else {
-      if (!state.motion) background.frame(0, camera.current, false);
+      if (!state.motion) background.frame(0, camera.current, false, scene.glowTarget());
       // 恢复时重置时间基准，避免把隐藏期间的时间算成一帧的大 dt。
       last = performance.now();
       scheduleLoop();
@@ -1065,7 +1071,7 @@ export function startApp() {
     scene.setInstant(!on);
     if (!on) camera.snap();
     if (!silent) render();
-    if (wasOn && !on && !document.hidden) background.frame(0, camera.current, false);
+    if (wasOn && !on && !document.hidden) background.frame(0, camera.current, false, scene.glowTarget());
   }
 
   // ---------------------------------------------------------------- main loop
@@ -1073,11 +1079,12 @@ export function startApp() {
   background.resize();
   resizeMeteors();
   if (!state.motion && !document.hidden) {
-    background.frame(0, camera.current, false);
+    background.frame(0, camera.current, false, scene.glowTarget());
     meteors.frame(0, false);
   }
   let last = performance.now();
   let rafId = 0;
+  let lastGlowKey = null;
   /** 页面隐藏时不再排队任何帧，可见后从这里恢复整个循环。 */
   function scheduleLoop() {
     if (rafId || document.hidden) return;
@@ -1087,8 +1094,15 @@ export function startApp() {
     rafId = 0;
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
-    if (state.motion) background.frame(dt, camera.current, true);
     scene.frame(dt);
+    // The scene has now stepped the camera and updated its screen-space focus.
+    // Redraw static effects when that focus changes, including the final settled frame.
+    const glowTarget = scene.glowTarget();
+    const glowKey = JSON.stringify([glowTarget, state.route.level, Boolean(state.popover)]);
+    if (state.motion || glowKey !== lastGlowKey) {
+      background.frame(dt, camera.current, state.motion, glowTarget);
+      lastGlowKey = glowKey;
+    }
     if (pendingActivation && !scene.isCollapsing()) {
       const { nodeId, element } = pendingActivation;
       pendingActivation = null;

@@ -5,7 +5,7 @@ import { makeRng, range } from "./random.js";
 const MOBILE_WIDTH = 860;
 
 export function createRain(ctx) {
-  const noop = { frame() {}, resize() {} };
+  const noop = { frame() {}, resize() {}, setDepth() {} };
   if (!ctx) return noop;
   const canvas = ctx.canvas;
   const rng = makeRng("rain");
@@ -17,6 +17,15 @@ export function createRain(ctx) {
   /** 尾端全透明的渐变端色，只随主题色变化，readGreen 时一并算好。 */
   let tailColor = "rgba(126, 242, 176, 0.000)";
   let meteors = [];
+  let frequency = 1;
+  let brightness = 1;
+  let frequencyTarget = 1;
+  let brightnessTarget = 1;
+  let paused = false;
+  let deep = false;
+  let fadeElapsed = 1;
+  let fromFrequency = 1;
+  let fromBrightness = 1;
 
   // 接口与 glow.js 一致；dpr 已由共享画布的 setTransform 处理。
   function resize(nextWidth, nextHeight, dpr) {
@@ -37,18 +46,25 @@ export function createRain(ctx) {
       m.y = rng() * height;
       return m;
     });
+    if (deep) setDepth("idea", paused);
   }
 
   function frame(dt, motion) {
     if (!width || !height || !meteors.length) return;
     ctx.clearRect(0, 0, width, height);
+    fadeElapsed = motion ? Math.min(1, fadeElapsed + dt) : 1;
+    frequency = fromFrequency + (frequencyTarget - fromFrequency) * fadeElapsed;
+    brightness = fromBrightness + (brightnessTarget - fromBrightness) * fadeElapsed;
     ctx.save();
+    ctx.globalAlpha = brightness;
     ctx.lineCap = "round";
     for (const m of meteors) {
       if (m.delay > 0) {
         if (motion) {
-          m.delay -= dt;
-          if (m.delay <= 0) spawn(m);
+          if (!paused) m.delay -= dt * frequency;
+          const active = meteors.filter((other) => other !== m && other.delay <= 0).length;
+          if (!paused && m.delay <= 0 && (!deep || active === 0)) spawn(m);
+          else if (m.delay <= 0) m.delay = 0.1;
         }
         continue;
       }
@@ -117,7 +133,27 @@ export function createRain(ctx) {
     tailColor = rgba(baseRgb, 0);
   }
 
-  return { frame, resize };
+  function setDepth(level, popover = false) {
+    const nextFrequency = level === "overview" ? 1 : level === "theme" ? 0.5 : 0.2;
+    if (nextFrequency !== frequencyTarget) {
+      fromFrequency = frequency;
+      fromBrightness = brightness;
+      fadeElapsed = 0;
+    }
+    deep = level !== "overview" && level !== "theme";
+    frequencyTarget = level === "overview" ? 1 : level === "theme" ? 0.5 : 0.2;
+    brightnessTarget = level === "overview" ? 1 : level === "theme" ? 0.7 : 0.5;
+    paused = popover;
+    if (deep) {
+      let kept = false;
+      for (const m of meteors) {
+        if (m.delay > 0) continue;
+        if (kept) m.delay = 1;
+        kept = true;
+      }
+    }
+  }
+  return { frame, resize, setDepth };
 }
 
 function rgba(rgb, alpha) {

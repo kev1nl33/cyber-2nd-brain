@@ -49,6 +49,7 @@ export function computeLayout(graph, view, viewport) {
       labelSide: entry.labelSide || "bottom",
       parentId: entry.parentId || null,
       z: entry.z ?? 1,
+      orbitAngle: entry.orbitAngle ?? null,
     };
     place.set(node.id, full);
     if (entry.focus) focus.push(full);
@@ -56,9 +57,9 @@ export function computeLayout(graph, view, viewport) {
   };
 
   if (view.level === "overview") {
-    layoutOverview(graph, { portrait, compact }, put);
+    layoutOverview(graph, { portrait, compact, viewport }, put);
   } else if (view.level === "theme") {
-    layoutTheme(graph, view, { portrait, compact }, put);
+    layoutTheme(graph, view, { portrait, compact, viewport }, put);
   } else {
     layoutIdea(graph, view, { portrait, compact }, put);
   }
@@ -102,7 +103,7 @@ function layoutOverview(graph, { portrait, compact }, put) {
   });
 }
 
-function layoutTheme(graph, view, { portrait, compact }, put) {
+function layoutTheme(graph, view, { portrait, compact, viewport = { width: 1440, height: 900 } }, put) {
   const active = graph.theme(view.themeId);
   if (!active) return layoutOverview(graph, { portrait, compact }, put);
 
@@ -138,36 +139,20 @@ function layoutTheme(graph, view, { portrait, compact }, put) {
     });
   });
 
-  // The rest of the network keeps its own side of the canvas: up on a phone,
-  // left on a wide screen, with the core brain holding the way back.
-  const awayBase = 180;
-  const away = { rx: 524, ry: 382, step: 30 };
-  put(graph.core, {
-    x: portrait ? 0 : -452,
-    y: portrait ? -272 : 0,
-    size: SIZE.coreAway,
-    role: "core-away",
-    detail: "theme",
-    dim: true,
-    parentId: active.id,
-    z: 1,
-  });
-
+  // Peripheral entries share an ellipse; none enlarge the focus fit.
+  const orbitRadius = Math.hypot(viewport.width, viewport.height) * 0.42;
   const others = graph.themes().filter((t) => t.themeId !== view.themeId);
-  const offsets = others.map((_, i) => i - (others.length - 1) / 2);
-  const shifted = offsets.some((o) => Math.abs(o) < 0.01) ? offsets.map((o) => o + 0.5) : offsets;
-  others.forEach((theme, i) => {
-    const angle = (awayBase + shifted[i] * away.step) * RAD;
-    // Portrait has no room for a ring, so the rest of the network lines up above.
-    const row = { x: (i - (others.length - 1) / 2) * 162, y: -424 };
-    put(theme, {
-      x: portrait ? row.x : Math.cos(angle) * away.rx,
-      y: portrait ? row.y : Math.sin(angle) * away.ry,
-      size: SIZE.themeAway,
-      role: "theme-away",
+  [graph.core, ...others].forEach((node, i, all) => {
+    const angle = (-135 + i * 360 / all.length) * RAD;
+    put(node, {
+      x: Math.cos(angle) * orbitRadius,
+      y: Math.sin(angle) * orbitRadius * viewport.height / viewport.width,
+      size: node === graph.core ? 82 : SIZE.themeAway,
+      role: node === graph.core ? "core-away" : "theme-away",
       detail: "distant",
       dim: true,
       parentId: active.id,
+      orbitAngle: angle,
       z: 1,
     });
   });
@@ -187,13 +172,13 @@ function layoutIdea(graph, view, { portrait, compact }, put) {
     ? compact
       ? { theme: { x: 0, y: -332 }, idea: { x: 0, y: -204 }, start: { x: 0, y: -54 } }
       : { theme: { x: 0, y: -448 }, idea: { x: 0, y: -286 }, start: { x: 0, y: -104 } }
-    : { theme: { x: -398, y: -42 }, idea: { x: -186, y: 10 }, start: { x: 38, y: 0 } };
+    : { theme: { x: -220, y: -180 }, idea: { x: -186, y: 10 }, start: { x: 38, y: 0 } };
 
   put(theme, {
     ...anchor.theme,
     size: portrait ? (compact ? 98 : 118) : 148,
     role: "theme-away",
-    detail: "theme",
+    detail: "distant",
     dim: true,
     z: 1,
   });
@@ -212,10 +197,10 @@ function layoutIdea(graph, view, { portrait, compact }, put) {
   // screen gives that room to the main line instead.
   const siblings = compact ? [] : graph.ideas(view.themeId).filter((n) => n.ideaId !== view.ideaId);
   siblings.forEach((sibling, i) => {
-    const offset = (i - (siblings.length - 1) / 2) * 124;
+    const angle = (-80 + (siblings.length === 1 ? 90 : i * 160 / (siblings.length - 1))) * RAD;
     put(sibling, {
-      x: portrait ? (i % 2 ? 1 : -1) * 148 : anchor.theme.x + offset,
-      y: portrait ? anchor.theme.y + 52 + Math.floor(i / 2) * 96 : anchor.theme.y + 162,
+      x: anchor.theme.x - 160 * Math.cos(angle),
+      y: anchor.theme.y + Math.max(170, siblings.length * 52) * Math.sin(angle),
       size: 62,
       role: "idea-away",
       dim: true,

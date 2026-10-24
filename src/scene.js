@@ -4,7 +4,7 @@
  * pixel size, and node ids never change while animating.
  */
 import { brainArt } from "./anatomy.js";
-import { coreBrightness, daysSince, latestStepDate } from "./glow.js";
+import { coreBrightness, daysSince, latestStepDate, EASE_TAU } from "./glow.js";
 import { conclusionGlyph, ideaGlyph, sourceGlyph, stepGlyph } from "./glyphs.js";
 import { nextLod } from "./lod.js";
 import { hashString } from "./random.js";
@@ -34,7 +34,6 @@ const ANCHOR = {
   source: 0.52,
 };
 
-const EASE_TAU = 0.17;
 const GROW_STAGGER = 40;
 const GROW_EDGE_MS = 300;
 const GROW_NODE_MS = 200;
@@ -104,13 +103,26 @@ export function edgePath(a, b, kind) {
   };
   return {
     path: `M ${start.x.toFixed(1)} ${start.y.toFixed(1)} Q ${control.x.toFixed(1)} ${control.y.toFixed(1)} ${end.x.toFixed(1)} ${end.y.toFixed(1)}`,
+    start, end,
     mid: { x: (start.x + 2 * control.x + end.x) / 4, y: (start.y + 2 * control.y + end.y) / 4 },
+  };
+}
+
+export function peripheralScreen(screen, area, radius) {
+  const pad = Math.max(64, radius + 18);
+  return {
+    x: Math.max(area.ox - area.width / 2 + pad, Math.min(area.ox + area.width / 2 - pad, screen.x)),
+    y: Math.max(area.oy - area.height / 2 + pad, Math.min(area.oy + area.height / 2 - pad, screen.y)),
   };
 }
 
 export function createScene({ root, nodesLayer, edgesSvg, tagsLayer, camera, onActivate, onHoverChange }) {
   const edgeGroup = edgesSvg.querySelector("#edge-group");
   // 每帧都要用的连线锚，建场景时查一次，不在 frame() 里反复 querySelector。
+  const orbit = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
+  orbit.setAttribute("class", "network-orbit");
+  orbit.setAttribute("aria-hidden", "true");
+  edgesSvg.appendChild(orbit);
   const connectorEl = edgesSvg.querySelector("#popover-connector-path");
   /** @type {Map<string, any>} */
   const rendered = new Map();
@@ -193,6 +205,19 @@ let pendingGrow = null;
     return node.label;
   }
 
+  function nodeMarkup(placement) {
+    return
+      `<span class="node-art"><svg viewBox="-110 -110 220 220" aria-hidden="true">${artMarkup(
+        placement
+      )}</svg>${
+        placement.node.type === "step" ? `<span class="node-index">${pad(placement.node.index)}</span>` : ""
+      }${
+        placement.node.type === "step" && placement.node.refIds?.length
+          ? `<span class="node-sources" aria-hidden="true">${placement.node.refIds.length}</span>`
+          : ""
+      }</span>` + `<span class="node-label label--${placement.labelSide}">${labelMarkup(placement)}</span>`;
+  }
+
   function createNode(placement) {
     const el = document.createElement("button");
     el.type = "button";
@@ -204,16 +229,7 @@ let pendingGrow = null;
     if (placement.node.connection) el.dataset.connection = placement.node.connection;
     if (placement.node.isNewest) el.dataset.newest = "true";
     el.setAttribute("aria-label", ariaLabel(placement));
-    el.innerHTML =
-      `<span class="node-art"><svg viewBox="-110 -110 220 220" aria-hidden="true">${artMarkup(
-        placement
-      )}</svg>${
-        placement.node.type === "step" ? `<span class="node-index">${pad(placement.node.index)}</span>` : ""
-      }${
-        placement.node.type === "step" && placement.node.refIds?.length
-          ? `<span class="node-sources" aria-hidden="true">${placement.node.refIds.length}</span>`
-          : ""
-      }</span>` + `<span class="node-label label--${placement.labelSide}">${labelMarkup(placement)}</span>`;
+    el.innerHTML = nodeMarkup(placement);
 
     el.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -261,6 +277,7 @@ let pendingGrow = null;
       recencyDays = latest ? daysSince(latest) : null;
       applyCoreBreath();
     }
+    orbit.style.display = [...layout.placements.values()].some((p) => p.orbitAngle !== null) ? "" : "none";
     const previous = placements;
     const collapsing = collapse && !instant;
     const oldCenter = centerOf(previous);
@@ -308,6 +325,10 @@ let pendingGrow = null;
         if (view.heldUntil) {
           view.cur = { x: newCenter.x, y: newCenter.y, size: placement.size * 0.4 };
         }
+      }
+      if (view.placement.role !== placement.role || view.placement.detail !== placement.detail || view.placement.labelSide !== placement.labelSide) {
+        view.el.innerHTML = nodeMarkup(placement);
+        view.el.dataset.role = placement.role;
       }
       view.placement = placement;
       if (instant) view.cur = { x: placement.x, y: placement.y, size: placement.size };
@@ -362,7 +383,7 @@ let pendingGrow = null;
 
   function centerOf(layer) {
     const values = [...layer.values()];
-    return values.find((p) => p.role === "theme-active") || values.find((p) => p.role === "core") || { x: 0, y: 0 };
+    return values.find((p) => p.role === "idea-active") || values.find((p) => p.role === "theme-active") || values.find((p) => p.role === "core") || { x: 0, y: 0 };
   }
 
   function removeNode(id, view) {
@@ -416,7 +437,23 @@ let pendingGrow = null;
         tag.textContent = "关联待确认";
         tagsLayer.appendChild(tag);
       }
-      edgeViews.set(edge.id, { edge, g, line, flow, mask, reveal, tag });
+      let gradient = null;
+      if (edge.kind === "recorded" || edge.kind === "inferred") {
+        gradient = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+        const gradientId = `edge-direction-${hashString(edge.id)}`;
+        gradient.id = gradientId;
+        gradient.setAttribute("gradientUnits", "userSpaceOnUse");
+        for (const [offset, opacity] of [[0, 0.4], [1, 1]]) {
+          const stop = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+          stop.setAttribute("offset", String(offset));
+          stop.setAttribute("stop-color", "var(--edge-color)");
+          stop.setAttribute("stop-opacity", String(opacity));
+          gradient.appendChild(stop);
+        }
+        g.appendChild(gradient);
+        line.style.stroke = `url(#${gradientId})`;
+      }
+      edgeViews.set(edge.id, { edge, g, line, flow, mask, reveal, tag, gradient });
     }
   }
 
@@ -593,6 +630,21 @@ let pendingGrow = null;
       }
 
       const screen = camera.toScreen(view.cur);
+      if (p.orbitAngle !== null) {
+        const area = camera.area;
+        const radius = Math.hypot(area.width, area.height) * 0.42;
+        const rx = Math.min(radius, area.width / 2 - 60);
+        const ry = Math.min(radius * area.height / area.width, area.height / 2 - 64);
+        screen.x = area.ox + Math.cos(p.orbitAngle) * rx;
+        screen.y = area.oy + Math.sin(p.orbitAngle) * ry;
+        orbit.setAttribute("cx", String(area.ox));
+        orbit.setAttribute("cy", String(area.oy));
+        orbit.setAttribute("rx", String(rx));
+        orbit.setAttribute("ry", String(ry));
+      } else if (p.role === "theme-away" || p.role === "idea-away") {
+        // Keep at least half the peripheral label reachable without shrinking focus.
+        Object.assign(screen, peripheralScreen(screen, camera.area, artPx(p, view.cur.size) / 2));
+      }
       const px = artPx(p, view.cur.size);
       view.screen = screen;
       view.radius = (px / 2) * (ANCHOR[p.node.type] ?? 0.6);
@@ -624,6 +676,12 @@ let pendingGrow = null;
       const b = rendered.get(view.edge.to);
       if (!a?.screen || !b?.screen) continue;
       const d = edgePath(a, b, view.edge.kind);
+      if (view.gradient) {
+        view.gradient.setAttribute("x1", String(d.start.x));
+        view.gradient.setAttribute("y1", String(d.start.y));
+        view.gradient.setAttribute("x2", String(d.end.x));
+        view.gradient.setAttribute("y2", String(d.end.y));
+      }
       view.line.setAttribute("d", d.path);
       view.flow.setAttribute("d", d.path);
       view.reveal.setAttribute("d", d.path);
@@ -704,6 +762,11 @@ let pendingGrow = null;
     nodeElement: (id) => rendered.get(id)?.el || null,
     screenOf: (id) => rendered.get(id)?.screen || null,
     radiusOf: (id) => rendered.get(id)?.radius || 0,
+    glowTarget() {
+      const center = centerOf(placements);
+      const view = rendered.get(center.id);
+      return view?.screen ? { ...view.screen, radius: view.radius * 1.6, role: center.role } : null;
+    },
     get hoverId() {
       return hoverId;
     },

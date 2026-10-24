@@ -8,7 +8,7 @@ import { makeRng, range } from "./random.js";
 
 export function createBackground({ canvas }) {
   const ctx = canvas.getContext("2d");
-  if (!ctx) return { resize() {}, frame() {}, setMode() {} };
+  if (!ctx) return { resize() {}, frame() {}, setMode() {}, setDepth() {} };
   const glow = createGlow(ctx);
   const rng = makeRng("background");
   let width = 0;
@@ -18,6 +18,10 @@ export function createBackground({ canvas }) {
   let digits = [];
   let mode = "idle";
   let introT = 0;
+  let depth = 1;
+  let depthTarget = 1;
+  let depthStart = 1;
+  let depthElapsed = 1;
 
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -68,13 +72,17 @@ export function createBackground({ canvas }) {
    * @param {{x:number,y:number,scale:number}} camera
    * @param {boolean} motion
    */
-  function frame(dt, camera, motion) {
+  function frame(dt, camera, motion, focus) {
     if (!width || !height) return;
     ctx.clearRect(0, 0, width, height);
     const cx = width / 2;
     const cy = height / 2;
     const intro = mode === "intro";
 
+    depthElapsed = motion ? Math.min(1, depthElapsed + dt) : 1;
+    depth = depthStart + (depthTarget - depthStart) * depthElapsed;
+    ctx.save();
+    ctx.globalAlpha = depth;
     drawGrid(camera);
 
     if (intro) introT += dt;
@@ -126,7 +134,8 @@ export function createBackground({ canvas }) {
       ctx.fillText(d.ch, d.x, d.y);
     }
     ctx.restore();
-    glow.frame(dt, motion);
+    ctx.restore();
+    glow.frame(dt, motion, focus);
   }
 
   function drawGrid(camera) {
@@ -152,6 +161,13 @@ export function createBackground({ canvas }) {
   return {
     resize,
     frame,
+    setDepth(level, popover = false) {
+      const next = (level === "overview" ? 1 : level === "theme" ? 0.7 : 0.5) * (popover ? 0.5 : 1);
+      if (next === depthTarget) return;
+      depthStart = depth;
+      depthTarget = next;
+      depthElapsed = 0;
+    },
     setMode(next) {
       if (mode === next) return;
       mode = next;

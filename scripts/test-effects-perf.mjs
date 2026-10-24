@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** 效果层性能加固的无视觉变化测试：stars / background / rain / glow。
+/** 效果层性能及第五期视觉行为测试：stars / background / rain / glow。
  *
  * 思路：用零依赖的假 DOM 和假 Canvas 记录器驱动四个模块跑一段固定脚本，
  * 把全部可观察输出（绘制调用 + 快照状态）哈希成 golden digest。
@@ -8,6 +8,7 @@
  * 运行：node scripts/test-effects-perf.mjs；打印摘要：node scripts/test-effects-perf.mjs --digest
  * 不读 private-data，不联网，不起浏览器。 */
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 
 // --------------------------------------------------------------- 计数器
 
@@ -270,8 +271,8 @@ class FakeCtx {
   fillText(text, x, y) {
     this._push(["fillText", [text, x, y], { font: this.font, ...this._paintState() }]);
   }
-  drawImage(image) {
-    this._push(["drawImage", [image.id, hash(image.ops)], this.transform]);
+  drawImage(image, ...args) {
+    this._push(["drawImage", [image.id, hash(image.ops), args], this._paintState()]);
   }
   createLinearGradient(...args) {
     return new Gradient("linear", args);
@@ -351,7 +352,7 @@ bgCanvas.clientHeight = 900;
 const background = createBackground({ canvas: bgCanvas });
 const camera = { x: 0, y: 0, scale: 1 };
 background.resize();
-for (let i = 0; i < 60; i++) background.frame(0.05, camAt(i, camera), true);
+for (let i = 0; i < 60; i++) background.frame(0.05, camAt(i, camera), true, { x: 500, y: 300, radius: 120, role: "core" });
 background.setMode("intro");
 for (let i = 0; i < 80; i++) background.frame(0.05, camAt(i, camera), true);
 background.setMode("idle");
@@ -455,9 +456,59 @@ function snapshotStars() {
   return { marks, paths };
 }
 
+const visualPayload = { rain: rainCanvas.ops, background: bgCanvas.ops };
+
+// Phase 5 behavior checks are independent of the visual digest.
+const { createGlow } = await import("../src/glow.js");
+const haloCanvas = new FakeCanvas();
+const halo = createGlow(haloCanvas.getContext());
+halo.resize(1440, 900, 2);
+halo.frame(0, false, { x: 200, y: 300, radius: 80, role: "idea-active" });
+const haloArcs = haloCanvas.ops.filter((op) => op[0] === "arc");
+check(haloArcs.length === 48 && haloArcs.every((op) => op[1][0] === 200 && op[1][1] === 300 && op[1][2] === 80), "static halo uses supplied screen center and radius");
+halo.frame(0, false, { x: 420, y: 180, radius: 64, role: "idea-active" });
+check(haloCanvas.ops.filter((op) => op[0] === "arc").at(-1)[1][0] === 420, "motion off follows camera immediately");
+const blit = haloCanvas.ops.filter((op) => op[0] === "drawImage").at(-1);
+check(blit[2].alpha === 0.6, "idea halo is attenuated to 0.6");
+const textureHash = blit[1][1];
+halo.resize(390, 844, 1);
+halo.frame(0.05, true, { x: 520, y: 180, radius: 64, role: "core" });
+const smoothX = haloCanvas.ops.filter((op) => op[0] === "arc").at(-1)[1][0];
+check(Math.abs(smoothX - (420 + 100 * (1 - Math.exp(-0.05 / 0.17)))) < 1e-9, "halo low-pass uses EASE_TAU");
+check(haloCanvas.ops.filter((op) => op[0] === "drawImage").at(-1)[1][1] === textureHash, "unit texture survives resize without rebuilding gradients");
+background.setDepth("idea", true);
+bgCanvas.ops = [];
+background.frame(0, camera, false, null);
+check(bgCanvas.ops.some((op) => op[0] === "fillText" && op[2].alpha === 0.25), "reduced motion depth snaps background to idea × popover 0.25");
+stars.setDepth("theme");
+check(starsLayer.style.opacity === "0.8", "theme stars use 0.8 brightness");
+stars.setDepth("idea", true);
+check(starsLayer.style.opacity === "0.3", "idea popover stars use 0.6 × 0.5");
+rain.setDepth("idea");
+let maxMeteors = 0;
+for (let i = 0; i < 200; i++) {
+  rainCanvas.ops = [];
+  rain.frame(0.05, true);
+  maxMeteors = Math.max(maxMeteors, rainCanvas.ops.filter((op) => op[0] === "lineTo").length);
+}
+check(maxMeteors <= 1, "idea layer has at most one meteor across ten simulated seconds");
+rain.setDepth("idea", true);
+for (let i = 0; i < 200; i++) rain.frame(0.05, true);
+rainCanvas.ops = [];
+rain.frame(0.05, true);
+check(!rainCanvas.ops.some((op) => op[0] === "lineTo"), "popover stops new meteors after current one exits");
+
+const sceneSource = readFileSync(new URL("../src/scene.js", import.meta.url), "utf8");
+const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+const cssSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+check(sceneSource.includes('gradient.setAttribute("gradientUnits", "userSpaceOnUse")') && sceneSource.includes('[[0, 0.4], [1, 1]]'), "main-line gradient uses user-space 0.4-to-1 opacity");
+check(sceneSource.includes('edge.kind === "recorded" || edge.kind === "inferred"') && sceneSource.includes('line.style.stroke = `url(#${gradientId})`'), "only main-line kinds get gradients, inline stroke survives CSS selection rules");
+check(["x1", "y1", "x2", "y2"].every((attr) => sceneSource.includes(`view.gradient.setAttribute("${attr}"`)), "gradient endpoints update with curve endpoints");
+check(/\.edge\.is-dim\s*\{\s*opacity: 0\.35/.test(cssSource) && appSource.includes("const path = focusPath(limit)"), "selection reuses focusPath prefix and dims future edges to 0.35");
+
 const digestPayload = {
-  rain: rainCanvas.ops,
-  background: bgCanvas.ops,
+  rain: visualPayload.rain,
+  background: visualPayload.background,
   stars: { hot: hotPhase, cold: coldPhase, open: openPhase, opened, anchors },
 };
 const digest = createHash("sha256").update(JSON.stringify(digestPayload)).digest("hex");
@@ -468,9 +519,9 @@ if (digestMode) {
 }
 
 /** 改动前用 --digest 生成并固化：效果层任何像素、时序、随机数顺序的变化都会让它失配。 */
-const GOLDEN_DIGEST = "61a041564bdb4dee3ad6ee7a905a217ce46d676be5f76260161d26b276492f47";
+const GOLDEN_DIGEST = "af8ab15a4d499ef7ad551c8c8e21942830d0e5ae1b6034c70e9b3aa1a6037fc1";
 
-check(digest === GOLDEN_DIGEST, `golden digest 不变（${digest.slice(0, 12)}…）`);
+check(digest === GOLDEN_DIGEST, `phase 5 golden digest（${digest.slice(0, 12)}…）`);
 
 // —— 性质：视口未变时帧循环不做重复布局写入 ——
 // 注：计数器在 getPropertyValue 里，一次 canvasBox() 读 --inset-top/bottom 共 2 次。
