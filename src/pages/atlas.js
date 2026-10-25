@@ -28,7 +28,7 @@ export function renderAtlas(ctx, route) {
   element.append(back,control,h('h1',{class:'visually-hidden',tabindex:'-1'},'回望'));
   const canvas=element.querySelector('canvas'), dpr=Math.min(2,devicePixelRatio||1);
   let W=0,H=0,S=0;
-  function resize(){W=innerWidth;H=innerHeight;canvas.width=W*dpr;canvas.height=H*dpr;canvas.style.width=W+'px';canvas.style.height=H+'px';layout();if(playing){for(const step of steps){if(!litKeys.has(step.key))continue;const star=starOf.get(step.ideaId);if(star){star.lit++;star.lastLit=step.date;}}}else applyDay();draw();}
+  function resize(){const rect=canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;W=rect.width;H=rect.height;canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);layout();if(playing){for(const step of steps){if(!litKeys.has(step.key))continue;const star=starOf.get(step.ideaId);if(star){star.lit++;star.lastLit=step.date;}}}else applyDay();draw();}
   const themes=model.themes.slice(0,5);
   const zones=themes.map((t,i)=>{const angle=(-90+i*72)*Math.PI/180;return {theme:t,cx:Math.cos(angle),cy:Math.sin(angle)};});
   const ideas=model.ideas.filter(i=>i.stepKeys.length);
@@ -44,6 +44,7 @@ export function renderAtlas(ctx, route) {
   function mix(a,b,t){const pa=parseInt(a.slice(1),16),pb=parseInt(b.slice(1),16);const r=Math.round(lerp(pa>>16,pb>>16,t)),gg=Math.round(lerp(pa>>8&255,pb>>8&255,t)),bl=Math.round(lerp(pa&255,pb&255,t));return `rgb(${r},${gg},${bl})`;}
   function brightness(star){return star.lit?Math.max(0.25,star.lit/star.idea.stepKeys.length):0;}
   function draw(){
+    if(!W||!H)return;
     const c=canvas.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,W,H);
     c.fillStyle='#06080f';c.fillRect(0,0,W,H);
     c.fillStyle='#ffffff';
@@ -88,8 +89,8 @@ export function renderAtlas(ctx, route) {
   function seek(target){playing=false;cancelAnimationFrame(raf);day=clamp(target,0,totalDays);pendingEvents=[];labels=[];flashes=[];lastT=performance.now();applyDay();draw();}
   function applyDay(){litKeys=new Set();for(const s of starOf.values()){s.lit=0;s.lastLit=null;}for(const step of steps){const sd=Math.round((Date.parse(step.date)-Date.parse(start))/DAILY);if(sd<=day){litKeys.add(step.key);const star=starOf.get(step.ideaId);if(star){star.lit+=1;star.lastLit=step.date;}}}}
   const tooltip=h('div',{class:'atlas-tooltip',role:'tooltip',hidden:true});element.append(tooltip);
-  function hit(event){return [...starOf.values()].find(s=>s.lit&&Math.hypot(event.clientX-s.x,event.clientY-s.y)<=Math.max(8,s.radius+4))??null;}
-  canvas.addEventListener('pointermove',e=>{hovered=hit(e);canvas.style.cursor=hovered?'pointer':'default';tooltip.hidden=!hovered;if(hovered){tooltip.replaceChildren(h('p',{},hovered.idea.title),h('p',{},`${hovered.zone.theme.label} · ${hovered.idea.stepKeys.length} 步`));tooltip.style.left=`${clamp(hovered.x,12,Math.max(12,W-260))}px`;tooltip.style.top=`${hovered.y+16}px`;}draw();});
+  function hit(event){const rect=canvas.getBoundingClientRect();if(!rect.width||!rect.height||event.clientX<rect.left||event.clientX>=rect.right||event.clientY<rect.top||event.clientY>=rect.bottom)return null;const x=(event.clientX-rect.left)*W/rect.width,y=(event.clientY-rect.top)*H/rect.height;return [...starOf.values()].find(s=>s.lit&&Math.hypot(x-s.x,y-s.y)<=Math.max(8,s.radius+4))??null;}
+  canvas.addEventListener('pointermove',e=>{hovered=hit(e);canvas.style.cursor=hovered?'pointer':'default';tooltip.hidden=!hovered;if(hovered){const rect=canvas.getBoundingClientRect(),parent=element.getBoundingClientRect();const x=(rect.left-parent.left+hovered.x*rect.width/W)*element.offsetWidth/parent.width,y=(rect.top-parent.top+hovered.y*rect.height/H)*element.offsetHeight/parent.height;tooltip.replaceChildren(h('p',{},hovered.idea.title),h('p',{},`${hovered.zone.theme.label} · ${hovered.idea.stepKeys.length} 步`));tooltip.style.left=`${clamp(x,12,Math.max(12,element.clientWidth-260))}px`;tooltip.style.top=`${y+16}px`;}draw();});
   canvas.addEventListener('pointerleave',()=>{hovered=null;tooltip.hidden=true;});
   canvas.addEventListener('click',event=>{const star=hit(event);if(star)ctx.navigate(`#/q/${encodeURIComponent(star.idea.id)}`);});
   const observer=new ResizeObserver(resize);observer.observe(element);
