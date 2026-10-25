@@ -84,8 +84,18 @@ export function renderAtlas(ctx, route) {
     if(day>=totalDays&&!pendingEvents.length)playing=false;draw();if(playing||pendingEvents.length||labels.length||flashes.length)raf=requestAnimationFrame(loop);}
   function toggle(){playing?stop():play();}
   function stop(){playing=false;cancelAnimationFrame(raf);pendingEvents=[];labels=[];flashes=[];applyDay();draw();}
-  element.addEventListener('keydown',e=>{if(e.key===' '){e.preventDefault();toggle();}if(e.key==='ArrowRight'){day=Math.min(totalDays,Math.round(day)+7);sync();}if(e.key==='ArrowLeft'){day=Math.max(0,Math.round(day)-7);sync();}if(e.key==='Home'){day=0;sync();}if(e.key==='End'){day=totalDays;sync();}});
-  function sync(){seek(day);}
+  element.addEventListener('keydown',e=>{
+    if(e.defaultPrevented)return;
+    if(e.key===' '){
+      if(e.target.closest('button,a,input,select,textarea,[contenteditable]:not([contenteditable="false"])'))return;
+      e.preventDefault();toggle();return;
+    }
+    if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
+    e.preventDefault();
+    if(e.key==='ArrowRight')seek(Math.round(day)+7);
+    else if(e.key==='ArrowLeft')seek(Math.round(day)-7);
+    else seek(e.key==='Home'?0:totalDays);
+  });
   function seek(target){playing=false;cancelAnimationFrame(raf);day=clamp(target,0,totalDays);pendingEvents=[];labels=[];flashes=[];lastT=performance.now();applyDay();draw();}
   function applyDay(){litKeys=new Set();for(const s of starOf.values()){s.lit=0;s.lastLit=null;}for(const step of steps){const sd=Math.round((Date.parse(step.date)-Date.parse(start))/DAILY);if(sd<=day){litKeys.add(step.key);const star=starOf.get(step.ideaId);if(star){star.lit+=1;star.lastLit=step.date;}}}}
   const tooltip=h('div',{class:'atlas-tooltip',role:'tooltip',hidden:true});element.append(tooltip);
