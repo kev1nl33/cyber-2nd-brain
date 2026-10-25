@@ -34,10 +34,10 @@ export function openPalette(ctx,commands) {
   }
   function select() {results.querySelectorAll('[role=option]').forEach((el,i)=>{el.classList.toggle('is-active',i===active);el.setAttribute('aria-selected',String(i===active));});input.setAttribute('aria-activedescendant',`palette-option-${active}`);results.querySelector(`#palette-option-${active}`)?.scrollIntoView({block:'nearest'});}
   function draw() {
-    const groups=search(index,input.value);entries=[];results.replaceChildren();
-    for(const [group,items] of Object.entries(groups)) {
+    const groups=search(index,input.value), displayGroups=input.value.trim()?Object.entries(groups).map(([group,items])=>[names[group],items]):[['前往',groups.command.filter(item=>item.id.startsWith('go-'))],['操作',groups.command.filter(item=>!item.id.startsWith('go-'))]];entries=[];results.replaceChildren();
+    for(const [title,items] of displayGroups) {
       if(!items.length)continue;
-      results.append(h('h3',{class:'palette-group'},input.value?names[group]:group==='command'?'前往 · 操作':names[group]));
+      results.append(h('h3',{class:'palette-group'},title));
       for(const item of items){const i=entries.length;entries.push(item);results.append(h('button',{class:'palette-result',id:`palette-option-${i}`,role:'option',tabindex:'-1',onclick:()=>execute(item)},h('span',{},item.title),item.snippet?h('small',{},item.snippet.before,h('mark',{},item.snippet.match),item.snippet.after):null));}
     }
     select();
