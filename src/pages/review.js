@@ -29,6 +29,11 @@ export function renderReview(ctx, initialRoute) {
   let drawnKey;
   let drawnDone = false;
   let tabsSignature = '';
+  let mobileDetail = false;
+  let listPosition;
+  let returnKey;
+  let actionsObserver;
+  let pendingDetailFocus = false;
   const element = h('section', { class: 'review' });
   const hiddenFile = h('input', { type: 'file', accept: 'application/json', hidden: true, onchange: async () => {
     const file = hiddenFile.files?.[0];
@@ -68,7 +73,7 @@ export function renderReview(ctx, initialRoute) {
         filter = id;
         route = { page: 'review', params: {} };
         draw();
-        go(selected?.key);
+        go(window.innerWidth < 640 ? null : selected?.key);
       },
     }, `${label} ${count}`)));
   }
@@ -112,20 +117,22 @@ export function renderReview(ctx, initialRoute) {
     detail = h('section', { class: 'review__detail', 'aria-label': '核对详情' });
     if (!selected) { detail.append(renderEmpty('都核对过了。', { href: '#/', label: '去看看今天' })); return detail; }
     const { type, target } = selected;
-    detail.append(h('a', { class: 'review__back', href: '#/review', onclick: event => { event.preventDefault(); go(); } }, '← 待核对'));
+    const content = h('div', { class: 'review__content' });
+    detail.append(content);
+    content.append(h('a', { class: 'review__back', href: '#/review', onclick: event => { event.preventDefault(); go(); } }, '← 返回列表'));
     const prompt = { conn: '这一步真的是从上一步来的吗？', lesson: '这条经验说得准确吗？', idea: '这样整理这个问题，你认可吗？' };
-    detail.append(h('h2', { class: 'review__prompt', tabindex: '-1' }, prompt[type]));
+    content.append(h('h2', { class: 'review__prompt', tabindex: '-1' }, prompt[type]));
     if (type === 'conn') {
       const idea = model.byId.idea.get(target.ideaId);
       const previous = model.byId.step.get(idea.stepKeys[target.index - 2]);
-      detail.append(previous ? stepCard(previous, '上一步') : h('section', { class: 'review-step' }, h('h3', {}, '问题'), h('p', {}, idea.title)),
+      content.append(previous ? stepCard(previous, '上一步') : h('section', { class: 'review-step' }, h('h3', {}, '问题'), h('p', {}, idea.title)),
         h('div', { class: 'review__connector', dataset: { connection: 'inferred' } }, `「${target.link}」 推断`), stepCard(target, '这一步'));
     } else if (type === 'lesson') {
-      detail.append(h('p', { class: 'review__lesson' }, `「${target.text}」`),
+      content.append(h('p', { class: 'review__lesson' }, `「${target.text}」`),
         ...target.patternIds.map(id => model.byId.pattern.get(id)).filter(Boolean).map(pattern => h('p', { class: 'review__pattern' }, `${pattern.name} · ${pattern.level}`)),
         ...target.stepKeys.map(key => model.byId.step.get(key)).filter(Boolean).map(step => stepCard(step, `第 ${step.index} 步`)));
     } else {
-      detail.append(h('h3', { class: 'review__idea-title' }, target.title), h('p', { class: 'review__status' }, target.statusRaw), renderPhaseBar(target.phases),
+      content.append(h('h3', { class: 'review__idea-title' }, target.title), h('p', { class: 'review__status' }, target.statusRaw), renderPhaseBar(target.phases),
         h('ol', { class: 'review__idea-steps' }, target.stepKeys.map(key => model.byId.step.get(key)).filter(Boolean).map(step => h('li', {},
           h('a', { href: `#/q/${encodeURIComponent(target.id)}/${encodeURIComponent(step.id)}` }, step.title)))));
     }
@@ -142,7 +149,13 @@ export function renderReview(ctx, initialRoute) {
     const actions = h('div', { class: 'review__actions' },
       [['Y', '确认', () => operation('confirmed')], ['E', '修改', openEditor], ['N', '不成立', () => operation('rejected')], ['S', '稍后', () => operation('snooze')]].map(([key, label, onclick]) =>
         h('button', { type: 'button', class: 'button button--outline', onclick }, h('kbd', {}, key), label)));
-    detail.append(editor, actions);
+    content.append(editor);
+    detail.append(actions);
+    actionsObserver?.disconnect();
+    actionsObserver = new ResizeObserver(() => {
+      element.style.setProperty('--review-actions-height', `${actions.getBoundingClientRect().height}px`);
+    });
+    actionsObserver.observe(actions);
     detail.addEventListener('pointerdown', event => {
       if (event.pointerType !== 'touch' || event.target.closest('a,button,textarea,input') || busy || window.innerWidth >= 640) return;
       pointer = { id: event.pointerId, x: event.clientX, y: event.clientY, width: detail.getBoundingClientRect().width };
@@ -151,18 +164,18 @@ export function renderReview(ctx, initialRoute) {
       if (!pointer || pointer.id !== event.pointerId) return;
       const dx = event.clientX - pointer.x;
       const dy = event.clientY - pointer.y;
-      if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) { pointer = null; detail.style.transform = ''; return; }
-      if (Math.abs(dx) > 10) { detail.setPointerCapture(event.pointerId); detail.style.transform = `translateX(${dx}px)`; }
+      if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) { pointer = null; content.style.transform = ''; return; }
+      if (Math.abs(dx) > 10) { detail.setPointerCapture(event.pointerId); content.style.transform = `translateX(${dx}px)`; }
     });
     detail.addEventListener('pointerup', event => {
       if (!pointer || pointer.id !== event.pointerId) return;
       const dx = event.clientX - pointer.x;
       const dy = event.clientY - pointer.y;
       const threshold = pointer.width * .3;
-      pointer = null; detail.style.transform = '';
+      pointer = null; content.style.transform = '';
       if (Math.abs(dx) >= threshold && Math.abs(dx) > Math.abs(dy)) operation(dx > 0 ? 'confirmed' : 'snooze');
     });
-    detail.addEventListener('pointercancel', () => { pointer = null; detail.style.transform = ''; });
+    detail.addEventListener('pointercancel', () => { pointer = null; content.style.transform = ''; });
     return detail;
   }
   function closeEditor() {
@@ -191,6 +204,14 @@ export function renderReview(ctx, initialRoute) {
     const requested = queue.find(item => item.key === route.params?.key);
     if (requested && filter !== 'all' && requested.type !== filter) { filter = 'all'; filtered = queue; }
     selected = requested ?? filtered[0] ?? null;
+    const enteringDetail = Boolean(route.params?.key) && window.innerWidth < 640;
+    const returning = mobileDetail && !enteringDetail;
+    if (enteringDetail && !mobileDetail) {
+      listPosition = { x: window.scrollX, y: window.scrollY };
+      returnKey = selected?.key;
+    }
+    const opening = enteringDetail && !mobileDetail;
+    mobileDetail = enteringDetail;
     element.classList.toggle('review--detail', Boolean(route.params?.key));
     element.classList.toggle('review--done', Boolean(route.params?.done));
     drawTabs();
@@ -223,6 +244,16 @@ export function renderReview(ctx, initialRoute) {
       drawnKey = selected?.key;
       if (!document.querySelector('[aria-modal="true"]') && (hadFocus || (route.params?.key && window.innerWidth < 640))) nextDetail.querySelector('h2[tabindex]')?.focus({ preventScroll: true });
     }
+    if (opening) pendingDetailFocus = true;
+    if (pendingDetailFocus && detail?.isConnected) {
+      detail.querySelector('h2[tabindex]')?.focus({ preventScroll: true });
+      pendingDetailFocus = false;
+    }
+    if (returning) {
+      const link = rows.get(returnKey)?.querySelector('a') ?? rows.get(selected?.key)?.querySelector('a');
+      link?.focus({ preventScroll: true });
+      if (listPosition) window.scrollTo(listPosition.x, listPosition.y);
+    }
     drawnDone = false;
   }
   function update(nextRoute) {
@@ -248,6 +279,6 @@ export function renderReview(ctx, initialRoute) {
     return handled;
   }
   draw();
-  return { element, update, onKey, destroy() { destroyed = true; clearTimeout(timer); pointer = null; } };
+  return { element, update, onKey, destroy() { destroyed = true; clearTimeout(timer); actionsObserver?.disconnect(); pointer = null; } };
 }
 export default renderReview;
