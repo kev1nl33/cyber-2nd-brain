@@ -68,7 +68,7 @@ export function mountShell(ctx) {
     const route = ctx.route, count = reviewQueue(ctx.model,ctx.overlay).length;
     const idea = ctx.model.byId.idea.get(route?.params.ideaId), theme = ctx.model.byId.theme.get(idea?.themeId ?? route?.params.themeId);
     if (idea) expanded[idea.themeId] = true;
-    sidebar.replaceChildren(h('a',{class:'brand',href:'#/','aria-label':'赛博第二大脑'},icon('theme'),h('span',{class:'nav-label'},'赛博第二大脑')),
+    sidebar.replaceChildren(h('a',{class:'brand',href:'#/','aria-label':'赛博第二大脑'},icon('brand'),h('span',{class:'nav-label'},'赛博第二大脑')),
       h('div',{class:'primary-nav'},link('today'),link('review',count),link('timeline'),link('atlas')),
       h('div',{class:'nav-heading'},'问题'));
     for (const t of ctx.model.themes) {
@@ -80,7 +80,7 @@ export function mountShell(ctx) {
       }
       sidebar.append(details);
     }
-    sidebar.append(h('div',{class:'nav-heading'},'资料'),link('lessons',ctx.model.lessons.length),link('sources',ctx.model.sources.length),h('footer',{class:'sidebar-footer'},h('div',{class:'pref-buttons'},h('button',{'aria-label':`切换到${ctx.prefs.theme==='dark'?'浅色':'深色'}`,onclick:()=>ctx.prefs.toggleTheme()},icon('theme'),h('span',{class:'nav-label'},ctx.prefs.theme==='dark'?'深色':'浅色')),h('button',{'aria-label':`动效${ctx.prefs.motion==='on'?'开':'关'}，点击切换`,onclick:()=>ctx.prefs.toggleMotion()},icon('motion'),h('span',{class:'nav-label'},`动效 ${ctx.prefs.motion==='on'?'开':'关'}`))),ctx.model.mode==='sample'?h('span',{class:'sample-badge nav-label'},'示例数据'):null,h('a',{href:'https://aikevin.dpdns.org/',class:'nav-label'},'返回博客 ↗')));
+    sidebar.append(h('div',{class:'nav-heading'},'资料'),link('lessons',ctx.model.lessons.length),link('sources',ctx.model.sources.length),h('footer',{class:'sidebar-footer'},h('div',{class:'pref-buttons'},h('button',{'aria-label':`切换到${ctx.prefs.theme==='dark'?'浅色':'深色'}`,onclick:()=>ctx.prefs.toggleTheme()},icon('theme'),h('span',{class:'nav-label'},ctx.prefs.theme==='dark'?'深色':'浅色')),h('button',{'aria-label':`动效${ctx.prefs.motion==='on'?'开':'关'}，点击切换`,onclick:()=>ctx.prefs.toggleMotion()},icon('motion'),h('span',{class:'nav-label'},`动效 ${ctx.prefs.motion==='on'?'开':'关'}`))),ctx.model.mode==='sample'?h('span',{class:'sample-badge nav-label'},'示例数据'):null,h('a',{href:'https://aikevin.dpdns.org/',class:'nav-label blog-link'},'返回博客',icon('external-link'))));
     sidebar.querySelector('.brand').after(toggle);
     applySidebar();
     if(toggleFocused) toggle.focus({preventScroll:true});

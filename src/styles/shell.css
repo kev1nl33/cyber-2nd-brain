@@ -33,6 +33,7 @@
 .idea-nav { padding-left:var(--sp-5); font-size:13px; }
 .mini-phases { display:flex; gap:2px; flex-shrink:0; }.mini-phases i { width:10px; height:4px; }
 .sidebar-footer { margin-top:auto; padding:var(--sp-5) var(--sp-2) 0; display:grid; gap:var(--sp-3); border-top:1px solid var(--line); font-size:12px; color:var(--text-3); }
+.blog-link { display:inline-flex; align-items:center; gap:var(--sp-1); }
 .pref-buttons { display:flex; gap:var(--sp-2); }.pref-buttons button { display:flex; align-items:center; gap:var(--sp-1); padding:0; font-size:12px; }
 .topbar { position:sticky; top:0; height:52px; z-index:20; background:var(--bg); border-bottom:1px solid var(--line); padding:0 var(--sp-5); display:flex; align-items:center; justify-content:space-between; gap:var(--sp-4); }
 .breadcrumbs { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; color:var(--text-2); }.breadcrumbs a { text-decoration:none; }
