@@ -1,7 +1,7 @@
 import { loadData } from './data/load.js';
 import { buildModel } from './data/model.js';
 import { todayKey } from './data/dates.js';
-import { parse, build, redirectLegacy } from './router.js';
+import { parse, redirectLegacy } from './router.js';
 import { h, icon } from './ui/dom.js';
 import { createPrefs } from './ui/prefs.js';
 import { mountShell } from './ui/shell.js';
@@ -55,7 +55,13 @@ const ctx = {model, overlay:store.load(), route:null, atlasOrigin:null,
     if (replace || samePage(ctx.route,target)) {history.replaceState(null,'',hash);render();}
     else location.hash=hash;
   },
-  returnFromAtlas() { ctx.navigate(ctx.atlasOrigin ?? '#/'); },
+  leaveAtlas() {
+    const returnTo = ctx.atlasOrigin || '#/';
+    page?.destroy?.();
+    page?.element.remove();
+    ctx.navigate(returnTo);
+    ctx.atlasOrigin = null;
+  },
   refresh() { render(true); },
 };
 ctx.prefs = createPrefs(()=>shell?.update());
@@ -91,7 +97,8 @@ function render(force=false) {
   const legacy=redirectLegacy(location.hash, model.themes.map(t=>t.id));
   if(legacy) history.replaceState(null,'',legacy);
   const route=parse(location.hash), previous=ctx.route;
-  if(route.page==='atlas' && previous && previous.page!=='atlas') ctx.atlasOrigin=build(previous);
+  if(route.page==='atlas' && previous?.page!=='atlas') ctx.atlasOrigin=ctx.routeHash ?? null;
+  ctx.routeHash=location.hash || '#/';
   ctx.route=route;
   const valid=validRoute(route);
   const same=samePage(previous,route);
@@ -121,5 +128,5 @@ document.addEventListener('click',event=>{
 });
 window.addEventListener('hashchange',()=>render());
 window.addEventListener('keydown',e=>{if(e.defaultPrevented || document.querySelector('[aria-modal="true"]') || !(e.target instanceof Element)||e.target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])') || e.metaKey || e.ctrlKey || e.altKey)return;page?.onKey?.(e);});
-window.addEventListener('keydown',e=>{if(e.key!=='Escape'||e.defaultPrevented||document.querySelector('.modal-backdrop'))return;if(ctx.route?.page==='atlas'){e.preventDefault();ctx.returnFromAtlas();return;}ctx.escape?.(e);});
+window.addEventListener('keydown',e=>{if(e.key!=='Escape'||e.defaultPrevented||document.querySelector('.modal-backdrop'))return;if(ctx.route?.page==='atlas'){e.preventDefault();ctx.leaveAtlas();return;}ctx.escape?.(e);});
 render();

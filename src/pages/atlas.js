@@ -21,7 +21,7 @@ export function renderAtlas(ctx, route) {
   const speedBtn=h('button',{class:'atlas-button',onclick:()=>{speed=speed===1?2:1;speedBtn.textContent=`${speed}×`;lastT=performance.now();}},'1×');
   const starBtn=h('button',{class:'atlas-button','aria-pressed':'false',onclick:()=>{stars=!stars;starBtn.setAttribute('aria-pressed',String(stars));draw();}},'星座');
   const bridgeBtn=h('button',{class:'atlas-button','aria-pressed':'true',onclick:()=>{bridges=!bridges;bridgeBtn.setAttribute('aria-pressed',String(bridges));draw();}},'光桥');
-  const back=h('a',{class:'atlas-back',href:ctx.atlasOrigin??'#/',onclick:event=>{event.preventDefault();ctx.returnFromAtlas?.();}},'← 返回');
+  const back=h('a',{class:'atlas-back',href:ctx.atlasOrigin??'#/',onclick:event=>{event.preventDefault();ctx.leaveAtlas?.();}},'← 返回');
   const firstMonthLabel=start?start.slice(0,7):'', lastMonthLabel=end?end.slice(0,7):'';
   control.append(playBtn,h('span',{class:'atlas-bound'},firstMonthLabel),bar,h('span',{class:'atlas-bound'},lastMonthLabel),dateLabel,speedBtn,starBtn,bridgeBtn);
   bar.addEventListener('input',()=>seek(Number(bar.value)));
