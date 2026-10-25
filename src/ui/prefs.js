@@ -6,6 +6,13 @@ export function createPrefs(onChange = () => {}) {
   const prefs = {
     get theme() { return ['dark','light'].includes(saved.theme) ? saved.theme : dark.matches ? 'dark' : 'light'; },
     get motion() { return ['on','off'].includes(saved.motion) ? saved.motion : reduced.matches ? 'off' : 'on'; },
+    get sidebarCollapsed() { return saved.sidebarCollapsed === true; },
+    get sidebarWidthPx() { return Number.isFinite(saved.sidebarWidthPx) ? Math.min(360, Math.max(200, saved.sidebarWidthPx)) : null; },
+    setSidebar({ collapsed = prefs.sidebarCollapsed, widthPx = prefs.sidebarWidthPx } = {}) {
+      saved.sidebarCollapsed = collapsed === true;
+      if (Number.isFinite(widthPx)) saved.sidebarWidthPx = Math.min(360, Math.max(200, widthPx));
+      persist();
+    },
     get reducedMotion() { return reduced.matches || prefs.motion === 'off'; },
     toggleTheme() { saved.theme = prefs.theme === 'dark' ? 'light' : 'dark'; persist(); },
     toggleMotion() { saved.motion = prefs.motion === 'on' ? 'off' : 'on'; persist(); },

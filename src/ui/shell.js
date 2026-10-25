@@ -5,12 +5,58 @@ import { renderPhaseBar } from './components/phase-bar.js';
 
 export function mountShell(ctx) {
   const sidebar = document.querySelector('#sidebar'), topbar = document.querySelector('#topbar'), tabbar = document.querySelector('#tabbar');
+  const app = document.querySelector('#app');
+  const desktop = matchMedia('(min-width: 960px)');
+  let drag = null;
+  const toggle = h('button', { class:'sidebar-toggle', 'aria-controls':'sidebar', onclick:()=>ctx.prefs.setSidebar({collapsed:!ctx.prefs.sidebarCollapsed, widthPx:ctx.prefs.sidebarCollapsed ? ctx.prefs.sidebarWidthPx : sidebar.getBoundingClientRect().width}) }, icon('arrow'));
+  const separator = h('div', { class:'sidebar-separator', role:'separator', tabindex:'0', 'aria-orientation':'vertical', 'aria-label':'侧栏宽度', 'aria-controls':'sidebar', 'aria-valuemin':'56', 'aria-valuemax':'360' });
+  document.querySelector('.workspace').prepend(separator);
+  function applySidebar(collapsed = ctx.prefs.sidebarCollapsed, width = ctx.prefs.sidebarWidthPx ?? (innerWidth >= 1280 ? 248 : 220)) {
+    app.dataset.sidebarCollapsed = String(collapsed);
+    app.style.setProperty('--sidebar-preferred-w', `${collapsed ? 56 : width}px`);
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+    toggle.setAttribute('aria-label', collapsed ? '展开侧栏' : '折叠侧栏');
+    toggle.title = collapsed ? '展开侧栏' : '折叠侧栏';
+    separator.setAttribute('aria-valuenow', String(collapsed ? 56 : width));
+  }
+  function resizeSidebar(rawWidth) {
+    const collapsed = rawWidth < 160;
+    const width = collapsed ? drag.width : Math.min(360, Math.max(200, rawWidth));
+    drag.next = {collapsed, widthPx:width};
+    applySidebar(collapsed, width);
+  }
+  separator.addEventListener('pointerdown', event=>{
+    if (!desktop.matches || event.button !== 0) return;
+    event.preventDefault(); separator.focus();
+    drag = { x:event.clientX, start:sidebar.getBoundingClientRect().width, width:ctx.prefs.sidebarWidthPx ?? (innerWidth >= 1280 ? 248 : 220) };
+    separator.setPointerCapture(event.pointerId);
+    app.classList.add('sidebar-resizing');
+  });
+  separator.addEventListener('pointermove', event=>{ if(drag) resizeSidebar(drag.start + event.clientX - drag.x); });
+  function finishResize(event) {
+    if (!drag) return;
+    const next = drag.next; drag = null; app.classList.remove('sidebar-resizing');
+    if (event.type === 'pointercancel') applySidebar();
+    else if(next) ctx.prefs.setSidebar(next);
+  }
+  separator.addEventListener('pointerup', finishResize);
+  separator.addEventListener('pointercancel', finishResize);
+  separator.addEventListener('lostpointercapture', finishResize);
+  separator.addEventListener('keydown', event=>{
+    if(!desktop.matches || !['ArrowLeft','ArrowRight'].includes(event.key)) return;
+    event.preventDefault();
+    const width = ctx.prefs.sidebarWidthPx ?? (innerWidth >= 1280 ? 248 : 220);
+    if(ctx.prefs.sidebarCollapsed) { if(event.key === 'ArrowRight') ctx.prefs.setSidebar({collapsed:false}); return; }
+    const next = width + (event.key === 'ArrowRight' ? 8 : -8);
+    ctx.prefs.setSidebar({collapsed:event.key === 'ArrowLeft' && width === 200, widthPx:Math.max(200,next)});
+  });
+  window.addEventListener('resize', ()=>{if(!drag) applySidebar();});
   const labels = {today:'今天',review:'待核对',timeline:'年表',atlas:'回望',lessons:'太史公曰',sources:'来源'};
   const hrefs = {today:'#/',review:'#/review',timeline:'#/timeline',atlas:'#/atlas',lessons:'#/lessons',sources:'#/sources'};
   let expanded = {};
   try { expanded = JSON.parse(sessionStorage.getItem('c2b.sidebar.v1')) ?? {}; } catch {}
   function link(page, count, label=labels[page]) {
-    return h('a',{href:hrefs[page],class:`nav-item ${ctx.route?.page === page ? 'current' : ''}`,...(ctx.route?.page===page?{'aria-current':'page'}:{})},icon(page),h('span',{class:'nav-label'},label),count ? h('span',{class:page==='review'?'count seal-count':'count'},count) : null);
+    return h('a',{href:hrefs[page],title:label,'aria-label':count ? `${label} ${count}` : label,class:`nav-item ${ctx.route?.page === page ? 'current' : ''}`,...(ctx.route?.page===page?{'aria-current':'page'}:{})},icon(page),h('span',{class:'nav-label'},label),count ? h('span',{class:page==='review'?'count seal-count':'count'},count) : null);
   }
   let releaseDrawer;
   function closeDrawer(){const el=document.querySelector('#evidence');el.classList.remove('is-open');el.removeAttribute('aria-modal');el.removeAttribute('role');el.querySelector('.evidence-close')?.remove();document.querySelector('.evidence-toggle')?.setAttribute('aria-expanded','false');const release=releaseDrawer;releaseDrawer=null;release?.();document.querySelector('.evidence-toggle')?.focus();}
@@ -18,10 +64,11 @@ export function mountShell(ctx) {
   ctx.closeDrawer=()=>{if(releaseDrawer)closeDrawer();};
   ctx.escape=closeDrawer;
   function update() {
+    const toggleFocused = document.activeElement === toggle;
     const route = ctx.route, count = reviewQueue(ctx.model,ctx.overlay).length;
     const idea = ctx.model.byId.idea.get(route?.params.ideaId), theme = ctx.model.byId.theme.get(idea?.themeId ?? route?.params.themeId);
     if (idea) expanded[idea.themeId] = true;
-    sidebar.replaceChildren(h('a',{class:'brand',href:'#/'},icon('theme'),h('span',{class:'nav-label'},'赛博第二大脑')),
+    sidebar.replaceChildren(h('a',{class:'brand',href:'#/','aria-label':'赛博第二大脑'},icon('theme'),h('span',{class:'nav-label'},'赛博第二大脑')),
       h('div',{class:'primary-nav'},link('today'),link('review',count),link('timeline'),link('atlas')),
       h('div',{class:'nav-heading'},'问题'));
     for (const t of ctx.model.themes) {
@@ -34,6 +81,9 @@ export function mountShell(ctx) {
       sidebar.append(details);
     }
     sidebar.append(h('div',{class:'nav-heading'},'资料'),link('lessons',ctx.model.lessons.length),link('sources',ctx.model.sources.length),h('footer',{class:'sidebar-footer'},h('div',{class:'pref-buttons'},h('button',{'aria-label':`切换到${ctx.prefs.theme==='dark'?'浅色':'深色'}`,onclick:()=>ctx.prefs.toggleTheme()},icon('theme'),h('span',{class:'nav-label'},ctx.prefs.theme==='dark'?'深色':'浅色')),h('button',{'aria-label':`动效${ctx.prefs.motion==='on'?'开':'关'}，点击切换`,onclick:()=>ctx.prefs.toggleMotion()},icon('motion'),h('span',{class:'nav-label'},`动效 ${ctx.prefs.motion==='on'?'开':'关'}`))),ctx.model.mode==='sample'?h('span',{class:'sample-badge nav-label'},'示例数据'):null,h('a',{href:'https://aikevin.dpdns.org/',class:'nav-label'},'返回博客 ↗')));
+    sidebar.querySelector('.brand').after(toggle);
+    applySidebar();
+    if(toggleFocused) toggle.focus({preventScroll:true});
     const title = idea?.title ?? theme?.label ?? labels[route?.page] ?? '今天';
     topbar.replaceChildren(h('div',{class:'breadcrumbs'},theme?h('a',{href:`#/t/${theme.id}`},theme.label):null,theme?h('span',{},' / '):null,h('a',{href:location.hash||'#/'},title)),h('div',{class:'topbar-actions'},h('button',{'aria-label':'搜索',onclick:()=>ctx.openPalette?.()},icon('search'),h('span',{class:'desktop-label'},'搜索'),h('kbd',{class:'desktop-label'},navigator.platform.includes('Mac')?'⌘K':'Ctrl K')),h('button',{class:'copy-link desktop-label','aria-live':'polite','aria-label':'复制链接',onclick:async e=>{const button=e.currentTarget,span=button.querySelector('.copy-text');try{await navigator.clipboard.writeText(location.href);}catch{ctx.openCopy?.();return;}span.textContent='已复制';button.setAttribute('aria-label','已复制');setTimeout(()=>{if(button.isConnected){span.textContent='复制链接';button.setAttribute('aria-label','复制链接');}},1500);}},icon('copy'),h('span',{class:'copy-text'},'复制链接')),h('button',{class:'evidence-toggle','aria-controls':'evidence','aria-expanded':String(document.querySelector('#evidence').classList.contains('is-open')),onclick:toggleDrawer},'证据')));
     tabbar.replaceChildren(link('today'),link('review',count),h('button',{onclick:()=>ctx.openMenu?.('questions')},icon('arrow'),h('span',{},'问题')),link('lessons',null,'经验'),h('button',{onclick:()=>ctx.openMenu?.('more')},icon('arrow'),h('span',{},'更多')));

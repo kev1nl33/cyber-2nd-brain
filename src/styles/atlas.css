@@ -1,4 +1,4 @@
-.app:has(.atlas) .sidebar,.app:has(.atlas) .topbar,.app:has(.atlas) .evidence,.app:has(.atlas) .tabbar {display:none;}
+.app:has(.atlas) .sidebar,.app:has(.atlas) .sidebar-separator,.app:has(.atlas) .topbar,.app:has(.atlas) .evidence,.app:has(.atlas) .tabbar {display:none!important;}
 .app:has(.atlas) {grid-template-columns:0 minmax(0,1fr) 0;}
 .atlas {position:fixed;inset:0;background:var(--sky);z-index:60;}
 .atlas-canvas {width:100%;height:100%;}
