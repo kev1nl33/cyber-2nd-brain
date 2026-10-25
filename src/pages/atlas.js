@@ -52,7 +52,13 @@ export function renderAtlas(ctx, route) {
     c.globalAlpha=1;
     const currentDate=dayToDate(day);
     for(const zone of zones){const rg=c.createRadialGradient(zone.x,zone.y,0,zone.x,zone.y,0.14*S);rg.addColorStop(0,'rgba(255,255,255,0.035)');rg.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=rg;c.beginPath();c.arc(zone.x,zone.y,0.14*S,0,7);c.fill();
-      c.textAlign='center';c.fillStyle='rgba(231,233,230,0.7)';c.font='15px "Noto Serif SC",serif';c.fillText(zone.theme.label,zone.x,zone.y-0.14*S-26);c.fillStyle='rgba(231,233,230,0.4)';c.font='10px "Geist Mono",monospace';c.fillText(zone.theme.en,zone.x,zone.y-0.14*S-10);}
+      c.textAlign='center';c.fillStyle='rgba(231,233,230,0.7)';c.font='15px "Noto Serif SC",serif';c.fillText(zone.theme.label,zone.x,zone.y-0.14*S-26);
+      c.save();c.fillStyle='rgba(231,233,230,0.4)';c.font='10px "Geist Mono",monospace';c.textAlign='left';
+      const chars=[...zone.theme.en],widths=chars.map(char=>c.measureText(char).width);
+      const width=widths.reduce((sum,w)=>sum+w,0)+Math.max(0,chars.length-1)*2;
+      let x=zone.x-width/2;
+      for(let i=0;i<chars.length;i++){c.fillText(chars[i],x,zone.y-0.14*S-10);x+=widths[i]+2;}
+      c.restore();}
     if(bridges){c.strokeStyle='rgba(240,230,210,0.16)';c.lineWidth=1;for(const [a,b] of bridgePairs){const star=starOf.get(a),other=starOf.get(b);if(!other||!star||other.lit===0||star.lit===0)continue;const mx=(star.x+other.x)/2,my=(star.y+other.y)/2;const cx=lerp(mx,W/2,0.15),cy=lerp(my,H/2,0.15);c.beginPath();c.moveTo(star.x,star.y);c.quadraticCurveTo(cx,cy,other.x,other.y);c.stroke();}}
     if(stars){c.save();c.strokeStyle='rgba(224,180,92,0.55)';c.setLineDash([3,4]);c.lineWidth=1;
       for(const pattern of model.patterns){const pts=[...new Set(model.lessons.filter(l=>l.patternIds.includes(pattern.id)).map(l=>starOf.get(l.ideaId)).filter(s=>s&&s.lit))];if(!pts.length)continue;let cx=0,cy=0;for(const p of pts){cx+=p.x;cy+=p.y;}cx/=pts.length;cy/=pts.length;
