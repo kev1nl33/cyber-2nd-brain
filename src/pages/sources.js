@@ -17,6 +17,10 @@ export function renderSources(ctx, initialRoute) {
   let domain = null;
   let query = '';
   let onlyCited = false;
+  const sourceLinks = new Map();
+  let renderedId;
+  let focusDetail = false;
+  let browseScroll = null;
   const search = h('input', { type: 'search', class: 'sources-page__search', placeholder: '搜索来源', 'aria-label': '搜索来源标题与标签',
     oninput: event => { query = event.target.value.toLocaleLowerCase(); drawList(); } });
   const controls = h('div', { class: 'sources-page__browse' }, search, filters,
@@ -38,18 +42,20 @@ export function renderSources(ctx, initialRoute) {
       && (!query || source.title.toLocaleLowerCase().includes(query) || source.tags.some(tag => tag.toLocaleLowerCase().includes(query))))
       .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || a.id.localeCompare(b.id));
     let year;
+    sourceLinks.clear();
     list.replaceChildren(...sources.map(source => {
       const currentYear = source.date?.slice(0, 4);
       const date = currentYear !== year ? fmtLong(source.date) : fmtShort(source.date);
       year = currentYear;
-      return h('li', { class: `source-row${route.params?.sourceId === source.id ? ' is-selected' : ''}` },
-        h('a', { class: 'source-row__link', href: sourceHash(source.id), 'aria-current': route.params?.sourceId === source.id ? 'true' : undefined,
+      const link = h('a', { class: 'source-row__link', href: sourceHash(source.id), 'aria-current': route.params?.sourceId === source.id ? 'true' : undefined,
           onclick: event => { event.preventDefault(); ctx.navigate(sourceHash(source.id), { replace: true }); } },
         h('time', { datetime: source.date ?? '', class: 'source-row__date' }, date),
         h('span', { class: 'source-row__title' }, source.title),
         h('span', { class: 'source-row__type' }, originLabel[source.origin] ?? source.kind),
         source.domain ? h('span', { class: 'source-row__domain' }, domains.find(([id]) => id === source.domain)?.[1] ?? source.domain) : null,
-        source.citedBy.length ? h('span', { class: 'source-row__count' }, `被 ${source.citedBy.length} 步引用`) : null));
+        source.citedBy.length ? h('span', { class: 'source-row__count' }, `被 ${source.citedBy.length} 步引用`) : null);
+      sourceLinks.set(source.id, link);
+      return h('li', { class: `source-row${route.params?.sourceId === source.id ? ' is-selected' : ''}` }, link);
     }));
     if (!sources.length) list.append(h('li', { class: 'source-list__empty' }, renderEmpty('没有匹配的来源。')));
   }
@@ -57,7 +63,7 @@ export function renderSources(ctx, initialRoute) {
     if (!source) return renderEmpty('找不到这个内容。', { href: '#/', label: '回到今天' });
     return h('article', { class: 'source-detail', dataset: { sourceId: source.id } },
       h('a', { class: 'source-detail__back', href: '#/sources', onclick: event => { event.preventDefault(); ctx.navigate('#/sources', { replace: true }); } }, '← 来源'),
-      h('h2', { class: 'source-detail__title' }, source.title),
+      h('h2', { class: 'source-detail__title', tabindex: '-1' }, source.title),
       h('p', { class: 'source-detail__meta' }, `${originLabel[source.origin] ?? source.kind} · ${fmtLong(source.date)}`,
         source.domain ? ` · ${domains.find(([id]) => id === source.domain)?.[1] ?? source.domain}` : ''),
       h('ul', { class: 'source-detail__tags', 'aria-label': '标签' }, source.tags.map(tag => h('li', {}, tag.split('/').map((part, index) =>
@@ -71,15 +77,37 @@ export function renderSources(ctx, initialRoute) {
         }))) : null);
   }
   function update(next) {
+    const previousId = renderedId;
+    const active = document.activeElement;
+    const detailHadFocus = mainDetail.contains(active) || evidence.contains(active);
     route = next;
     const id = route.params?.sourceId;
-    element.classList.toggle('sources-page--detail', Boolean(id));
-    evidence.replaceChildren(...(id ? [detail(model.byId.source.get(id))] : []));
-    mainDetail.replaceChildren(...(id ? [detail(model.byId.source.get(id))] : []));
-    drawList();
+    const narrow = window.matchMedia('(width < 1280px)').matches;
+    if (id !== renderedId) {
+      if (narrow && id && !previousId) browseScroll = { x: window.scrollX, y: window.scrollY };
+      element.classList.toggle('sources-page--detail', Boolean(id));
+      for (const [sourceId, link] of sourceLinks) {
+        const selected = sourceId === id;
+        link.parentElement.classList.toggle('is-selected', selected);
+        if (selected) link.setAttribute('aria-current', 'true'); else link.removeAttribute('aria-current');
+      }
+      evidence.replaceChildren(...(id ? [detail(model.byId.source.get(id))] : []));
+      mainDetail.replaceChildren(...(id ? [detail(model.byId.source.get(id))] : []));
+      renderedId = id;
+      focusDetail = Boolean(id) && (narrow || detailHadFocus);
+      if (!id && previousId) {
+        sourceLinks.get(previousId)?.focus({ preventScroll: true });
+        if (browseScroll) window.scrollTo(browseScroll.x, browseScroll.y);
+        browseScroll = null;
+      }
+    }
+    if (focusDetail && element.isConnected) {
+      (narrow ? mainDetail : evidence).querySelector('.source-detail__title')?.focus({ preventScroll: true });
+      focusDetail = false;
+    }
     return true;
   }
-  drawFilters(); update(route);
+  drawFilters(); drawList(); update(route);
   return { element, evidence, update };
 }
 export default renderSources;
